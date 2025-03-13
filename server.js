@@ -31,4 +31,4 @@ export const startServer = async () => {
 };
 
 // Se inicia el servidor desde este archivo o desde un index principal
-startServer();
+// startServer(); // Commented out as it's now called from index.jsr();
