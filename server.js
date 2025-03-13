@@ -20,10 +20,16 @@ export const startServer = async () => {
     await fastify.listen({ port: PORT, host: "0.0.0.0" });
     console.log(`[Server] Escuchando en el puerto ${PORT}`);
 
-    // Iniciar túnel ngrok y almacenar la URL pública (por ejemplo, en una variable global o en un servicio)
-    const publicUrl = await startNgrokTunnel(PORT);
-    // Podrías almacenar publicUrl en un objeto de configuración global o pasarlo a las rutas
-    console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
+    try {
+      // Iniciar túnel ngrok y almacenar la URL pública en una variable global
+      const publicUrl = await startNgrokTunnel(PORT);
+      global.publicUrl = publicUrl; // Make it available globally
+      process.env.PUBLIC_URL = publicUrl; // Also set as environment variable
+      console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
+    } catch (ngrokError) {
+      console.error("[ngrok] Error al iniciar el túnel, continuando sin él:", ngrokError);
+      console.log("[Server] El servidor sigue funcionando en http://localhost:" + PORT);
+    }
   } catch (error) {
     console.error("[Server] Error al iniciar el servidor:", error);
     process.exit(1);

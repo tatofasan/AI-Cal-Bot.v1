@@ -40,7 +40,7 @@ export default async function outboundCallRoutes(fastify, options) {
     const prompt = request.query.prompt || "";
     const first_message = request.query.first_message || "";
     // Aquí genera el TwiML usando los parámetros y la URL del stream
-    const publicUrl = "TU_PUBLIC_URL_AQUI"; // Puedes inyectar la URL desde una configuración global
+    const publicUrl = global.publicUrl || process.env.PUBLIC_URL || request.hostname;
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
       <Response>
         <Connect>

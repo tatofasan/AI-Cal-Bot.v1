@@ -11,8 +11,11 @@ const twilioClient = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
 export const twilioCall = async ({ prompt, first_message, to_number }) => {
   const destinationNumber = to_number || TO_PHONE_NUMBER;
-  // Suponiendo que publicUrl se gestiona globalmente o a través de configuración
-  const publicUrl = "TU_PUBLIC_URL_AQUI";
+  // Get the ngrok URL from global context or environment
+  const publicUrl = global.publicUrl || process.env.PUBLIC_URL;
+  if (!publicUrl) {
+    throw new Error("No public URL available for Twilio call");
+  }
   const call = await twilioClient.calls.create({
     from: TWILIO_PHONE_NUMBER,
     to: destinationNumber,
