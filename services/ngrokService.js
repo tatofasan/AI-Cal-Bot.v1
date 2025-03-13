@@ -1,6 +1,7 @@
+
 import Fastify from "fastify";
-import routes from "./src/routes/index.js";
-import { startNgrokTunnel } from "./src/services/ngrokService.js";
+import routes from "../routes/index.js";
+import { startNgrokTunnel } from "./ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 const fastify = Fastify();
