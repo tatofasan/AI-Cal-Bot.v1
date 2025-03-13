@@ -4,16 +4,20 @@ import ngrok from "ngrok";
 
 export const startNgrokTunnel = async (port) => {
   try {
-    // Check if NGROK_AUTHTOKEN exists in environment
-    if (!process.env.NGROK_AUTHTOKEN) {
-      console.warn("[ngrok] No NGROK_AUTHTOKEN found in environment variables");
-      throw new Error("Missing NGROK_AUTHTOKEN");
-    }
+    // Using the auth token directly from environment or hardcoded for testing
+    const authToken = process.env.NGROK_AUTHTOKEN || "cr_2uGR6pzrud1x8wTB3xNvHUIfvNF";
     
-    // Connect with simplified options
+    // Connect with simplified options and no management API dependency
     const publicUrl = await ngrok.connect({
       addr: port,
-      authtoken: process.env.NGROK_AUTHTOKEN
+      authtoken: authToken,
+      onLogEvent: (data) => {
+        if (data.obj === "err") {
+          console.error(`[ngrok] ${data.msg}`);
+        } else {
+          console.log(`[ngrok] ${data.msg}`);
+        }
+      }
     });
     
     return publicUrl;
