@@ -1,17 +1,16 @@
+
 // src/services/ngrokService.js
 import ngrok from "ngrok";
 
 export const startNgrokTunnel = async (port) => {
   try {
-    // First ensure ngrok is running by starting the agent
-    await ngrok.authtoken("your_auth_token"); // Replace with your ngrok auth token if you have one
-    
-    // Configure ngrok to not need the management UI
+    // Configure ngrok to not use the management API
     const publicUrl = await ngrok.connect({
       addr: port,
       onStatusChange: (status) => console.log(`[ngrok] Estado: ${status}`),
-      authtoken_from_env: true, // Use NGROK_AUTHTOKEN if available
-      authtoken: process.env.NGROK_AUTHTOKEN, // Optional auth token from env
+      authtoken_from_env: true,
+      noAuthAPI: true, // Skip using the management API
+      noServerMetrics: true // Skip metrics collection
     });
     console.log(`[ngrok] Tunnel URL: ${publicUrl}`);
     return publicUrl;

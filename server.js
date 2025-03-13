@@ -28,7 +28,11 @@ export const startServer = async () => {
       console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
     } catch (ngrokError) {
       console.error("[ngrok] Error al iniciar el túnel, continuando sin él:", ngrokError);
-      console.log("[Server] El servidor sigue funcionando en http://localhost:" + PORT);
+      // Use Replit's domain as fallback when ngrok fails
+      const replitDomain = process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.dev` : `http://0.0.0.0:${PORT}`;
+      global.publicUrl = replitDomain;
+      process.env.PUBLIC_URL = replitDomain;
+      console.log(`[Server] El servidor sigue funcionando en ${replitDomain}`);
     }
   } catch (error) {
     console.error("[Server] Error al iniciar el servidor:", error);
