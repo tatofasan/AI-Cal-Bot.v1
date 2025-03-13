@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba de Llamadas ElevenLabs</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    h1 { color: #333; }
+    label { display: block; margin-top: 10px; }
+    textarea, input { 
+      width: 100%; 
+      padding: 8px; 
+      margin: 5px 0 15px; 
+      box-sizing: border-box; 
+    }
+    button { 
+      background: #4CAF50; 
+      color: white; 
+      padding: 10px 15px; 
+      border: none; 
+      cursor: pointer; 
+    }
+    pre { 
+      background: #f4f4f4; 
+      padding: 10px; 
+      border-radius: 5px; 
+      overflow-x: auto; 
+    }
+    #response { 
+      margin-top: 20px; 
+      background: #f8f8f8; 
+      padding: 10px; 
+      border-radius: 5px; 
+      min-height: 50px; 
+    }
+    #logs {
+      margin-top: 30px;
+      background: #000;
+      color: #00ff00;
+      padding: 10px;
+      border-radius: 5px;
+      height: 300px;
+      display: block;
+      overflow-y: auto;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <h1>Prueba de Llamadas - ElevenLabs</h1>
+  <!-- Se inyecta la URL pública en el span con id "publicUrl" -->
+  <p>URL pública: <strong id="publicUrl">{{publicUrl}}</strong></p>
+
+  <form id="callForm">
+    <label for="prompt">Prompt para el agente:</label>
+    <textarea id="prompt" rows="3">Eres un agente de servicio al cliente llamando para verificar el estado de un pedido reciente.</textarea>
+
+    <label for="firstMessage">Primer mensaje del agente:</label>
+    <textarea id="firstMessage" rows="2">Buenos días, mi nombre es Valeria Rodríguez, soy representante comercial de Smoke Off, me comunico con {{user_name}}?</textarea>
+
+    <label for="toNumber">Número de teléfono (opcional, se usará el predeterminado si está vacío):</label>
+    <input type="text" id="toNumber" placeholder="+541161728140">
+
+    <button type="submit">Iniciar Llamada</button>
+  </form>
+
+  <div id="response"></div>
+
+  <h2>Cómo acceder desde un sitio externo</h2>
+  <p>Utiliza este código para hacer una solicitud desde cualquier sitio:</p>
+  <pre>
+fetch('{{publicUrl}}/outbound-call', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: "Eres un agente de ventas llamando para ofrecer un producto nuevo",
+    first_message: "Buenos días, mi nombre es Valeria Rodríguez, soy representante comercial de Smoke Off, me comunico con {{user_name}}?"
+  })
+})
+.then(response => response.json())
+.then(data => console.log('Respuesta:', data))
+.catch(error => console.error('Error:', error));
+  </pre>
+
+  <h2>Logs del servidor</h2>
+  <div id="logs"></div>
+
+  <script>
+    // WebSocket para recibir logs
+    const logsElement = document.getElementById('logs');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const logsWs = new WebSocket(wsProtocol + '//' + window.location.host + '/logs-websocket');
+
+    logsElement.innerHTML = '[INFO] Esperando conexión a logs...\n';
+
+    logsWs.onopen = function() {
+      logsElement.innerHTML += '[INFO] Conexión a logs establecida\n';
+      const heartbeatInterval = setInterval(() => {
+        if (logsWs.readyState === WebSocket.OPEN) {
+          logsWs.send('heartbeat');
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000);
+
+      logsWs.addEventListener('close', () => {
+        clearInterval(heartbeatInterval);
+      });
+    };
+
+    logsWs.onmessage = function(event) {
+      const log = event.data;
+      console.log("Log recibido:", log);
+      logsElement.innerHTML += log + '\n';
+      setTimeout(() => {
+        logsElement.scrollTop = logsElement.scrollHeight;
+      }, 10);
+    };
+
+    logsWs.onclose = () => {
+      logsElement.innerHTML += '[Conexión a logs cerrada]\n';
+    };
+
+    document.getElementById('callForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const responseDiv = document.getElementById('response');
+      responseDiv.innerHTML = 'Iniciando llamada...';
+
+      try {
+        const promptValue = document.getElementById('prompt').value;
+        const firstMessageValue = document.getElementById('firstMessage').value;
+        const toNumberValue = document.getElementById('toNumber').value || null;
+
+        const response = await fetch('/outbound-call', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            prompt: promptValue,
+            first_message: firstMessageValue,
+            to_number: toNumberValue
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Error HTTP: " + response.status + " " + response.statusText);
+        }
+
+        const data = await response.json();
+        responseDiv.innerHTML = '<h3>Respuesta</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+      } catch (error) {
+        responseDiv.innerHTML = '<h3>Error</h3><pre>' + error.toString() + '</pre>';
+      }
+    });
+  </script>
+</body>
+</html>

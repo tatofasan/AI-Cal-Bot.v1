@@ -1,23 +1,28 @@
 // src/routes/outboundCall.js
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import { twilioCall } from "../services/twilioService.js";
 
+// Para obtener __dirname en ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export default async function outboundCallRoutes(fastify, options) {
-  // Ruta de interfaz web (HTML)
-  fastify.get("/", async (_, reply) => {
-    // Puedes mover el HTML a un archivo de plantilla o mantenerlo aquí
-    const htmlInterface = `<!DOCTYPE html>
-    <html lang="es">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Prueba de Llamadas</title>
-      </head>
-      <body>
-        <h1>Interfaz de llamada</h1>
-        <!-- Resto del HTML -->
-      </body>
-    </html>`;
-    return reply.type("text/html").send(htmlInterface);
+  // Ruta que sirve el front end
+  fastify.get("/", async (request, reply) => {
+    try {
+      // Lee el archivo HTML
+      let html = fs.readFileSync(path.join(__dirname, "../../views/index.html"), "utf8");
+      // Supongamos que publicUrl está en options o en un objeto de configuración global
+      const publicUrl = fastify.publicUrl || "http://localhost:8000";
+      // Reemplaza el placeholder {{publicUrl}} con el valor actual
+      html = html.replace(/{{publicUrl}}/g, publicUrl);
+      return reply.type("text/html").send(html);
+    } catch (error) {
+      console.error("Error leyendo el archivo HTML:", error);
+      return reply.code(500).send("Error interno");
+    }
   });
 
   // Ruta para iniciar la llamada
@@ -39,8 +44,7 @@ export default async function outboundCallRoutes(fastify, options) {
   fastify.all("/outbound-call-twiml", async (request, reply) => {
     const prompt = request.query.prompt || "";
     const first_message = request.query.first_message || "";
-    // Aquí genera el TwiML usando los parámetros y la URL del stream
-    const publicUrl = global.publicUrl || process.env.PUBLIC_URL || request.hostname;
+    const publicUrl = fastify.publicUrl || "http://localhost:8000";
     const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
       <Response>
         <Connect>
