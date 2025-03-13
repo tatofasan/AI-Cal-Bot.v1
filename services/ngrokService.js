@@ -4,22 +4,28 @@ import ngrok from "ngrok";
 
 export const startNgrokTunnel = async (port) => {
   try {
-    // Using the auth token directly from environment or hardcoded for testing
+    // Check for required auth token
     const authToken = process.env.NGROK_AUTHTOKEN || "cr_2uGR6pzrud1x8wTB3xNvHUIfvNF";
-    
-    // Set the auth token first
-    await ngrok.authtoken(authToken);
-    
-    // Then connect to the tunnel with minimal options
-    const publicUrl = await ngrok.connect({
+    if (!authToken) {
+      throw new Error("Missing ngrok auth token");
+    }
+
+    // Simple configuration to avoid complex options
+    const url = await ngrok.connect({
+      proto: 'http',
       addr: port,
-      region: 'us',
+      authtoken: authToken,
+      region: 'us'
     });
-    
-    console.log(`[ngrok] Successfully connected to: ${publicUrl}`);
-    return publicUrl;
+
+    console.log(`[ngrok] Successfully connected to: ${url}`);
+    return url;
   } catch (error) {
-    console.error("[ngrok] Error creating tunnel:", error.message);
+    // More specific error logging
+    console.error(`[ngrok] Error creating tunnel: ${error.message}`);
+    if (error.stack) {
+      console.error(`[ngrok] Error stack: ${error.stack}`);
+    }
     throw error; // Let the server handle the fallback
   }
 };
