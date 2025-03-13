@@ -12,8 +12,8 @@ export default async function outboundCallRoutes(fastify, options) {
   // Ruta que sirve el front end
   fastify.get("/", async (request, reply) => {
     try {
-      // Lee el archivo HTML
-      let html = fs.readFileSync(path.join(__dirname, "../../views/index.html"), "utf8");
+      // Lee el archivo HTML - corregimos la ruta relativa
+      let html = fs.readFileSync(path.join(__dirname, "../views/index.html"), "utf8");
       // Supongamos que publicUrl está en options o en un objeto de configuración global
       const publicUrl = fastify.publicUrl || "http://localhost:8000";
       // Reemplaza el placeholder {{publicUrl}} con el valor actual
