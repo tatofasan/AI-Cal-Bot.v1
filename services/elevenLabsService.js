@@ -148,7 +148,7 @@ export const setupMediaStream = async (ws) => {
             const audioMessage = {
               user_audio_chunk: Buffer.from(msg.media.payload, "base64").toString("base64"),
             };
-            // Removed excessive logging here
+            console.log("[Twilio] Sending audio chunk to ElevenLabs");
             elevenLabsWs.send(JSON.stringify(audioMessage));
           } else {
             console.log("[Twilio] ElevenLabs WebSocket not open. Current state:", elevenLabsWs ? elevenLabsWs.readyState : "undefined");
