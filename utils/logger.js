@@ -1,21 +1,46 @@
-// src/utils/logger.js
-// Puedes exportar funciones de log o modificar globalmente los métodos de console
-const originalLog = console.log;
-const originalError = console.error;
-const originalInfo = console.info;
+import WebSocket from "ws";
+
+// Guarda los métodos originales
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+const originalConsoleInfo = console.info;
+
+// Conjunto de clientes conectados al WebSocket de logs
+const logClients = new Set();
 
 console.log = function (...args) {
-  originalLog.apply(console, args);
-  // Aquí podrías enviar los logs a clientes conectados, por ejemplo:
-  // logClients.forEach(client => client.send(`[LOG] ${args.join(" ")}`));
+  const formattedMessage = `[LOG] ${args.join(" ")}`;
+  originalConsoleLog.apply(console, args);
+  logClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(formattedMessage);
+      } catch (error) {
+        originalConsoleError("Error enviando log al cliente:", error);
+        logClients.delete(client);
+      }
+    }
+  });
 };
 
 console.error = function (...args) {
-  originalError.apply(console, args);
-  // Similar para errores
+  const formattedMessage = `[ERROR] ${args.join(" ")}`;
+  originalConsoleError.apply(console, args);
+  logClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(formattedMessage);
+    }
+  });
 };
 
 console.info = function (...args) {
-  originalInfo.apply(console, args);
-  // Similar para info
+  const formattedMessage = `[INFO] ${args.join(" ")}`;
+  originalConsoleInfo.apply(console, args);
+  logClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(formattedMessage);
+    }
+  });
 };
+
+export { logClients };
