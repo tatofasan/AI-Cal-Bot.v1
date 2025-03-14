@@ -1,5 +1,5 @@
 // src/utils/logger.js
-// Puedes exportar funciones de log o modificar globalmente los métodos de console
+export const console = globalThis.console;
 const originalLog = console.log;
 const originalError = console.error;
 const originalInfo = console.info;
