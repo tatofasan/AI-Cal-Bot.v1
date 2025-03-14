@@ -1,7 +1,7 @@
 // src/services/ngrokService.js
 import ngrok from "ngrok";
 import "../utils/logger.js";
-import { console as logger } from "console";
+const logger = console;
 
 export const startNgrokTunnel = async (port) => {
   logger.info("[ngrok] Attempting to connect to ngrok...");
