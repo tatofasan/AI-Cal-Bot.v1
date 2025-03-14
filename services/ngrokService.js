@@ -1,22 +1,26 @@
-// src/services/ngrokService.js
-import ngrok from "ngrok";
+// services/ngrokService.js
+const ngrok = require('ngrok');
+const logger = require('../utils/logger');
 
-export const startNgrokTunnel = async (port) => {
+let ngrokUrl = null;
+
+async function startNgrok(port) {
   try {
-    // Try a simpler connection approach without the management API
-    const publicUrl = await ngrok.connect({
-      addr: port,
-      onStatusChange: (status) => {
-        if (status === 'connected') {
-          console.log(`[ngrok] Status: Connected`);
-        }
-      },
-      authtoken_from_env: true,
+    ngrokUrl = await ngrok.connect({
+      addr: port, // Asegúrate de que este puerto sea el correcto (debería ser 3000)
+      // Otros parámetros de configuración de ngrok pueden ir aquí
     });
-
-    return publicUrl;
+    logger.info(`[ngrok] Túnel creado exitosamente: ${ngrokUrl}`);
+    return ngrokUrl;
   } catch (error) {
-    console.error("[ngrok] Error creating tunnel:", error.message);
-    throw error; // Let the server handle the fallback
+    logger.error(`[ngrok] Error al crear el túnel: ${error.message}`);
+    logger.error(`[ngrok] Error detallado: ${error}`);
+    return null;
   }
-};
+}
+
+function getNgrokUrl() {
+  return ngrokUrl;
+}
+
+module.exports = { startNgrok, getNgrokUrl };

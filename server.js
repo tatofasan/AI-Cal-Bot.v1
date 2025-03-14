@@ -1,53 +1,49 @@
-// src/server.js
-import Fastify from "fastify";
-import fastifyFormBody from "@fastify/formbody";
-import fastifyWs from "@fastify/websocket";
-import { startNgrokTunnel } from "./services/ngrokService.js";
-import routes from "./routes/index.js";
-import "./utils/logger.js";
+// server.js
+const express = require('express');
+const path = require('path');
+const logger = require('./utils/logger');
+const indexRouter = require('./routes/index');
+const outboundCallRouter = require('./routes/outboundCall');
+const websocketsRouter = require('./routes/websockets');
+const ngrokService = require('./services/ngrokService');
 
-const PORT = 3000;
-const fastify = Fastify();
+const app = express();
+const port = process.env.PORT || 3000; // Define el puerto aquí
 
-fastify.register(fastifyFormBody);
-fastify.register(fastifyWs);
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Registrar rutas
-fastify.register(routes);
+// Rutas
+app.use('/', indexRouter);
+app.use('/outboundCall', outboundCallRouter);
+app.use('/websockets', websocketsRouter);
 
-// Aquí definimos una propiedad global en fastify para la URL pública
-fastify.decorate("publicUrl", null);
+// Configuración de las vistas (si es necesario)
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'html'); // O el motor de plantillas que estés usando
 
-export const startServer = async () => {
-  try {
-    await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`[Server] Escuchando en el puerto ${PORT}`);
+let ngrokUrl = null;
 
-    // Determinar la URL pública basada en el entorno de Replit
-    let publicUrl;
-    try {
-      // Intenta iniciar túnel ngrok, pero no es obligatorio para continuar
-      publicUrl = await startNgrokTunnel(PORT);
-      console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
-    } catch (ngrokError) {
-      console.error("[ngrok] Error con ngrok, usando URL de Replit:", ngrokError.message);
-      // Usar la URL de Replit como alternativa
-      publicUrl = process.env.REPL_SLUG 
-        ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.dev` 
-        : `https://${process.env.REPL_ID}.id.repl.co`;
-      console.log(`[Server] URL pública: ${publicUrl}`);
+async function startServer() {
+  app.listen(port, () => {
+    logger.info(`[Server] Escuchando en el puerto ${port}`);
+    // Iniciar ngrok solo si no estamos en un entorno de Replit
+    if (!process.env.REPL_ID) {
+      ngrokService.startNgrok(port)
+        .then((url) => {
+          ngrokUrl = url;
+          if (ngrokUrl) {
+            logger.info(`[Server] URL pública (ngrok): ${ngrokUrl}`);
+          }
+        })
+        .catch(error => {
+          logger.error(`[Server] Error al iniciar ngrok: ${error.message}`);
+        });
+    } else {
+      logger.info(`[Server] URL pública (Replit): https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
+      logger.info(`[Server] Servidor disponible en: https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`);
     }
-    
-    // Establecer la URL pública para su uso en toda la aplicación
-    fastify.publicUrl = publicUrl;
-    global.publicUrl = publicUrl;
-    process.env.PUBLIC_URL = publicUrl;
-    
-    console.log(`[Server] Servidor disponible en: ${publicUrl}`);
-  } catch (serverError) {
-    console.error("[Server] Error al iniciar el servidor:", serverError);
-    process.exit(1);
-  }
-};
-
-startServer();
+  });
+}
