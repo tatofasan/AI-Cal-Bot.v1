@@ -6,7 +6,7 @@ import { startNgrokTunnel } from "./services/ngrokService.js";
 import routes from "./routes/index.js";
 import "./utils/logger.js";
 
-const PORT = 8000;
+const PORT = 3000;
 const fastify = Fastify();
 
 fastify.register(fastifyFormBody);
