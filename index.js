@@ -1,5 +1,4 @@
 
-// index.js
-const { startServer } = require('./server.js');
+import { startServer } from './server.js';
 
 startServer();

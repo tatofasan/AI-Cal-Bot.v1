@@ -1,12 +1,15 @@
 
-// server.js
-const express = require('express');
-const path = require('path');
-const logger = require('./utils/logger');
-const indexRouter = require('./routes/index');
-const outboundCallRouter = require('./routes/outboundCall');
-const websocketsRouter = require('./routes/websockets');
-const ngrokService = require('./services/ngrokService');
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import logger from './utils/logger.js';
+import indexRouter from './routes/index.js';
+import outboundCallRouter from './routes/outboundCall.js';
+import websocketsRouter from './routes/websockets.js';
+import ngrokService from './services/ngrokService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -45,4 +48,4 @@ function startServer() {
   });
 }
 
-module.exports = { startServer };
+export { startServer };
