@@ -1,3 +1,4 @@
+
 // server.js
 const express = require('express');
 const path = require('path');
@@ -8,28 +9,24 @@ const websocketsRouter = require('./routes/websockets');
 const ngrokService = require('./services/ngrokService');
 
 const app = express();
-const port = process.env.PORT || 3000; // Define el puerto aquí
+const port = process.env.PORT || 3000;
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rutas
 app.use('/', indexRouter);
 app.use('/outboundCall', outboundCallRouter);
 app.use('/websockets', websocketsRouter);
 
-// Configuración de las vistas (si es necesario)
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'html'); // O el motor de plantillas que estés usando
+app.set('view engine', 'html');
 
 let ngrokUrl = null;
 
-async function startServer() {
+function startServer() {
   app.listen(port, () => {
     logger.info(`[Server] Escuchando en el puerto ${port}`);
-    // Iniciar ngrok solo si no estamos en un entorno de Replit
     if (!process.env.REPL_ID) {
       ngrokService.startNgrok(port)
         .then((url) => {
@@ -47,3 +44,5 @@ async function startServer() {
     }
   });
 }
+
+module.exports = { startServer };
