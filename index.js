@@ -1,4 +1,7 @@
-
+// index.js
 import { startServer } from './server.js';
 
-startServer();
+// Solo ejecuta startServer() si este archivo es el módulo principal
+if (import.meta.url === new URL(import.meta.url).href) {
+    startServer();
+}
