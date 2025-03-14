@@ -1,4 +1,3 @@
-
 // src/services/ngrokService.js
 import ngrok from "ngrok";
 
@@ -14,7 +13,7 @@ export const startNgrokTunnel = async (port) => {
       },
       authtoken_from_env: true,
     });
-    
+
     return publicUrl;
   } catch (error) {
     console.error("[ngrok] Error creating tunnel:", error.message);
