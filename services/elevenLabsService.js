@@ -187,10 +187,21 @@ export const setupMediaStream = async (ws) => {
         console.error("[ElevenLabs] Error en WebSocket:", error);
       });
 
-      elevenLabsWs.on("close", (code, reason) => {
+      elevenLabsWs.on("close", async (code, reason) => {
         console.log(
           `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`,
         );
+        
+        if (callSid) {
+          try {
+            const { twilioClient } = await import('./twilioService.js');
+            await twilioClient.calls(callSid)
+              .update({ status: 'completed' });
+            console.log(`[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`);
+          } catch (error) {
+            console.error('[ElevenLabs] Error al finalizar la llamada:', error);
+          }
+        }
       });
     } catch (error) {
       console.error("[ElevenLabs] Error configurando ElevenLabs:", error);
