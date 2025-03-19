@@ -195,11 +195,17 @@ export const setupMediaStream = async (ws) => {
         if (callSid) {
           try {
             const { default: twilioClient } = await import('./twilioService.js');
-            await twilioClient.calls(callSid)
-              .update({ status: 'completed' });
-            console.log(`[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`);
+            // Verificar estado actual de la llamada
+            const call = await twilioClient.calls(callSid).fetch();
+            
+            if (call.status !== 'completed' && call.status !== 'canceled') {
+              await twilioClient.calls(callSid).update({ status: 'completed' });
+              console.log(`[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`);
+            } else {
+              console.log(`[ElevenLabs] Llamada ${callSid} ya estaba finalizada (estado: ${call.status})`);
+            }
           } catch (error) {
-            console.error('[ElevenLabs] Error al finalizar la llamada:', error);
+            console.error('[ElevenLabs] Error al verificar/finalizar la llamada:', error);
           }
         }
       });
