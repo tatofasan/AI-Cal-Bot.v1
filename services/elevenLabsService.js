@@ -194,8 +194,8 @@ export const setupMediaStream = async (ws) => {
         
         if (callSid) {
           try {
-            const { twilioClient } = await import('./twilioService.js');
-            await twilioClient.calls(callSid)
+            const twilioService = await import('./twilioService.js');
+            await twilioService.twilioClient.calls(callSid)
               .update({ status: 'completed' });
             console.log(`[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`);
           } catch (error) {
