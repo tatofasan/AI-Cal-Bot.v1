@@ -44,6 +44,7 @@ export const twilioCall = async ({ user_name, to_number }) => {
       to: destinationNumber,
       url: twimlUrl,
       byoc: TWILIO_BYOC_TRUNK_SID,
+      machineDetection: true,
     };
 
     console.log("[Twilio] Opciones de llamada:", callOptions);
