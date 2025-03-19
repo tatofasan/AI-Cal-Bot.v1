@@ -194,7 +194,7 @@ export const setupMediaStream = async (ws) => {
         
         if (callSid) {
           try {
-            const { default: twilioClient } = await import('./twilioService.js');
+            const { twilioClient } = await import('./twilioService.js');
             // Verificar estado actual de la llamada
             const call = await twilioClient.calls(callSid).fetch();
             
