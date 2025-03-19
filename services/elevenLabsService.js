@@ -75,13 +75,8 @@ export const setupMediaStream = async (ws) => {
         console.log("[ElevenLabs] WebSocket conectado a ElevenLabs");
 
         try {
-          // Extraer parámetros para el prompt y first_message
-          const promptValue =
-            customParameters?.prompt ||
-            "Eres un agente de servicio al cliente llamando para verificar el estado de un pedido reciente.";
-          const firstMessageValue =
-            customParameters?.first_message ||
-            "Hola, soy un representante de servicio al cliente.";
+          // Extraer el nombre del usuario de los parámetros
+          const userName = customParameters?.user_name || "Usuario";
 
           console.log("[ElevenLabs] Enviando configuración inicial");
 
@@ -89,7 +84,7 @@ export const setupMediaStream = async (ws) => {
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
-              user_name: "Ignacio",
+              user_name: userName,
             },
             /* conversation_config_override: {
               agent: {

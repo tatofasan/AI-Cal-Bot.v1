@@ -20,10 +20,9 @@ try {
   throw error;
 }
 
-export const twilioCall = async ({ prompt, first_message, to_number }) => {
+export const twilioCall = async ({ user_name, to_number }) => {
   console.log("[Twilio] Iniciando llamada con parámetros:", {
-    promptLength: prompt?.length,
-    firstMessageLength: first_message?.length,
+    userName: user_name,
     toNumber: to_number || TO_PHONE_NUMBER,
   });
 
@@ -33,9 +32,7 @@ export const twilioCall = async ({ prompt, first_message, to_number }) => {
   const publicUrl = REPLIT_URL;
 
   // Construir la URL para TwiML con parámetros codificados
-  const twimlUrl = `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
-    prompt || "",
-  )}&first_message=${encodeURIComponent(first_message || "")}`;
+  const twimlUrl = `${publicUrl}/outbound-call-twiml?user_name=${encodeURIComponent(user_name || "")}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
