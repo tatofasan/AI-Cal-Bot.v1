@@ -1,33 +1,72 @@
 // src/services/twilioService.js
 import Twilio from "twilio";
 
+// Constantes
 const TWILIO_ACCOUNT_SID = "ACb593668600bd12b6cc9289e1b8e4f74d";
 const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
+const REPLIT_URL =
+  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
-const twilioClient = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+// Crear cliente de Twilio
+let twilioClient;
+try {
+  twilioClient = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  console.log("[Twilio] Cliente inicializado correctamente");
+} catch (error) {
+  console.error("[Twilio] Error inicializando cliente:", error);
+  throw error;
+}
 
 export const twilioCall = async ({ prompt, first_message, to_number }) => {
-  const destinationNumber = to_number || TO_PHONE_NUMBER;
-  // Get the ngrok URL from global context or environment
-  const publicUrl = global.publicUrl || process.env.PUBLIC_URL;
-  if (!publicUrl) {
-    throw new Error("No public URL available for Twilio call");
-  }
-  const call = await twilioClient.calls.create({
-    from: TWILIO_PHONE_NUMBER,
-    to: destinationNumber,
-    url: `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
-      prompt,
-    )}&first_message=${encodeURIComponent(first_message)}`,
-    byoc: TWILIO_BYOC_TRUNK_SID,
+  console.log("[Twilio] Iniciando llamada con parámetros:", {
+    promptLength: prompt?.length,
+    firstMessageLength: first_message?.length,
+    toNumber: to_number || TO_PHONE_NUMBER,
   });
-  return {
-    success: true,
-    message: "Call initiated",
-    callSid: call.sid,
-    destinationNumber,
-  };
+
+  const destinationNumber = to_number || TO_PHONE_NUMBER;
+
+  // Usar la URL forzada para asegurar que Twilio se conecte correctamente
+  const publicUrl = REPLIT_URL;
+
+  // Construir la URL para TwiML con parámetros codificados
+  const twimlUrl = `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
+    prompt || "",
+  )}&first_message=${encodeURIComponent(first_message || "")}`;
+
+  console.log("[Twilio] URL TwiML:", twimlUrl);
+
+  try {
+    console.log("[Twilio] Enviando petición a API de Twilio...");
+
+    const callOptions = {
+      from: TWILIO_PHONE_NUMBER,
+      to: destinationNumber,
+      url: twimlUrl,
+      byoc: TWILIO_BYOC_TRUNK_SID,
+    };
+
+    console.log("[Twilio] Opciones de llamada:", callOptions);
+
+    const call = await twilioClient.calls.create(callOptions);
+
+    console.log("[Twilio] Llamada iniciada con éxito:", call.sid);
+    return {
+      success: true,
+      message: "Call initiated",
+      callSid: call.sid,
+      destinationNumber,
+    };
+  } catch (error) {
+    console.error("[Twilio] Error al iniciar llamada:", error);
+    console.error("[Twilio] Detalles adicionales:", {
+      code: error.code,
+      status: error.status,
+      moreInfo: error.moreInfo,
+    });
+    throw error;
+  }
 };

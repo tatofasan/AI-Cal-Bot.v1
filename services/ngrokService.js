@@ -1,42 +1,58 @@
-// src/services/ngrokService.js
 import ngrok from "ngrok";
 import "../utils/logger.js";
 const logger = console;
 
 export const startNgrokTunnel = async (port) => {
+  // Check if running in Replit environment
+  const isReplitEnvironment = process.env.REPL_ID || process.env.REPL_SLUG;
+
+  // If in Replit, skip ngrok attempt and use Replit URL directly
+  if (isReplitEnvironment) {
+    let replitUrl;
+
+    if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+      replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.dev`;
+    } else if (process.env.REPL_SLUG) {
+      replitUrl = `https://${process.env.REPL_SLUG}.replit.dev`;
+    } else {
+      // Fallback for other Replit URL formats
+      replitUrl = process.env.REPLIT_URL || `https://workspace.replit.dev`;
+    }
+
+    logger.info(
+      `[ngrok] Running in Replit environment. Using Replit URL: ${replitUrl}`,
+    );
+    return replitUrl;
+  }
+
+  // If not in Replit, attempt to use ngrok normally
   logger.info("[ngrok] Attempting to connect to ngrok...");
   try {
-    // Try a simpler connection approach without the management API
+    // Try to kill any existing ngrok processes first
+    try {
+      await ngrok.kill();
+    } catch (killError) {
+      logger.warn(
+        "[ngrok] Error killing existing ngrok processes:",
+        killError.message,
+      );
+    }
+
     const publicUrl = await ngrok.connect({
       addr: port,
+      authtoken_from_env: true,
       onStatusChange: (status) => {
         logger.info(`[ngrok] Status changed: ${status}`);
-        if (status === 'connecting') {
-          logger.info("[ngrok] [ngrok] Attempting to establish connection...");
-        } else if (status === 'connected') {
-          logger.info("[ngrok] [ngrok] Connection established successfully.");
-        } else if (status === 'disconnected') {
-          logger.warn("[ngrok] [ngrok] Connection was disconnected.");
-        } else if (status === 'reconnecting') {
-          logger.info("[ngrok] [ngrok] Attempting to reconnect...");
-        } else if (status === 'fatal_error') {
-          logger.error("[ngrok] [ngrok] A fatal error occurred with ngrok.");
-        }
       },
-      authtoken_from_env: true,
-      // You can try adding more detailed logging options if available in the ngrok library
-      // For example, some libraries allow specifying a log level.
-      // However, the 'ngrok' package might not expose such fine-grained control directly.
-
-      // You could also try specifying a region if you suspect regional issues
-      // region: 'us', // Example: 'us', 'eu', 'ap', etc.
     });
 
-    logger.info(`[ngrok] Tunnel created successfully. Public URL: ${publicUrl}`);
+    logger.info(
+      `[ngrok] Tunnel created successfully. Public URL: ${publicUrl}`,
+    );
     return publicUrl;
   } catch (error) {
     logger.error("[ngrok] Error creating tunnel:", error.message);
-    logger.error("[ngrok] Full ngrok error object:", error); // Log the full error object
-    throw error; // Let the server handle the fallback
+    logger.error("[ngrok] Full ngrok error object:", error);
+    throw new Error(`[ngrok] Failed to create tunnel: ${error.message}`);
   }
 };

@@ -1,8 +1,8 @@
 // src/routes/index.js
-import outboundCallRoutes from "./outboundCall.js";
-import websocketsRoutes from "./websockets.js";
+import * as outboundCallRoutes from "./outboundCall.js";
+import * as websocketsRoutes from "./websockets.js";
 
 export default async function routes(fastify, options) {
-  fastify.register(outboundCallRoutes);
-  fastify.register(websocketsRoutes);
+  fastify.register(outboundCallRoutes.default || outboundCallRoutes);
+  fastify.register(websocketsRoutes.default || websocketsRoutes);
 }
