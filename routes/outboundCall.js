@@ -38,7 +38,7 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { user_name, to_number } = request.body;
+    const { user_name = "el titular de la linea", to_number } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
       user_name,
@@ -61,7 +61,7 @@ export default async function outboundCallRoutes(fastify, options) {
   // Ruta para generar TwiML
   fastify.all("/outbound-call-twiml", async (request, reply) => {
     try {
-      const user_name = request.query.user_name || "";
+      const user_name = request.query.user_name || "el titular de la linea";
 
       // Usar la URL correcta
       const publicUrl = REPLIT_URL;
