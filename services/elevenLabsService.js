@@ -86,14 +86,6 @@ export const setupMediaStream = async (ws) => {
             dynamic_variables: {
               user_name: userName,
             },
-            /* conversation_config_override: {
-              agent: {
-                prompt: {
-                  prompt: promptValue,
-                },
-                first_message: firstMessageValue,
-              },
-            },*/
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));
