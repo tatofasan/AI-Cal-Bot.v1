@@ -62,11 +62,8 @@
   <p>URL pública: <strong id="publicUrl">{{publicUrl}}</strong></p>
 
   <form id="callForm">
-    <label for="prompt">Prompt para el agente:</label>
-    <textarea id="prompt" rows="3">Eres un agente de servicio al cliente llamando para verificar el estado de un pedido reciente.</textarea>
-
-    <label for="firstMessage">Primer mensaje del agente:</label>
-    <textarea id="firstMessage" rows="2">Buenos días, mi nombre es Valeria Rodríguez, soy representante comercial de Smoke Off, me comunico con {{user_name}}?</textarea>
+    <label for="userName">Nombre de la persona a llamar:</label>
+    <input type="text" id="userName" placeholder="Ingrese el nombre">
 
     <label for="toNumber">Número de teléfono (opcional, se usará el predeterminado si está vacío):</label>
     <input type="text" id="toNumber" placeholder="+541161728140">
@@ -139,8 +136,7 @@ fetch('{{publicUrl}}/outbound-call', {
       responseDiv.innerHTML = 'Iniciando llamada...';
 
       try {
-        const promptValue = document.getElementById('prompt').value;
-        const firstMessageValue = document.getElementById('firstMessage').value;
+        const userNameValue = document.getElementById('userName').value;
         const toNumberValue = document.getElementById('toNumber').value || null;
 
         const response = await fetch('/outbound-call', {
@@ -149,8 +145,7 @@ fetch('{{publicUrl}}/outbound-call', {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            prompt: promptValue,
-            first_message: firstMessageValue,
+            user_name: userNameValue,
             to_number: toNumberValue
           })
         });
