@@ -15,10 +15,12 @@ export default async function outboundCallRoutes(fastify, options) {
   fastify.get("/", async (request, reply) => {
     try {
       // Lee el archivo HTML - corregimos la ruta relativa
+   
       let html = fs.readFileSync(
         path.join(__dirname, "../views/index.html"),
         "utf8",
       );
+      
       // Usar la URL correcta
       const publicUrl = getReplitUrl();
       // Reemplaza el placeholder {{publicUrl}} con el valor actual
