@@ -7,7 +7,7 @@ const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
-import { REPLIT_URL } from './urlService.js';
+import { getReplitUrl } from './urlService.js';
 
 // Crear cliente de Twilio
 let twilioClient;
@@ -28,7 +28,7 @@ export const twilioCall = async ({ user_name, to_number }) => {
   const destinationNumber = to_number || TO_PHONE_NUMBER;
 
   // Usar la URL forzada para asegurar que Twilio se conecte correctamente
-  const publicUrl = REPLIT_URL;
+  const publicUrl = getReplitUrl();
 
   // Construir la URL para TwiML con parámetros codificados
   const twimlUrl = `${publicUrl}/outbound-call-twiml?user_name=${encodeURIComponent(user_name || "")}`;
