@@ -7,8 +7,7 @@ const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
-const REPLIT_URL =
-  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+import { REPLIT_URL } from './urlService.js';
 
 // Crear cliente de Twilio
 let twilioClient;

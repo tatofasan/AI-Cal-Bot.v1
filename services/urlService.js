@@ -1,6 +1,8 @@
 // src/services/urlService.js
 // Simple service to store and retrieve the public URL across the application
 
+export const REPLIT_URL = "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+
 // Default URL is null, will be set after ngrok/server starts
 let publicUrl = null;
 

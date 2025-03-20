@@ -8,9 +8,7 @@ import { twilioCall } from "../services/twilioService.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// URL correcta de Replit
-const REPLIT_URL =
-  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+import { REPLIT_URL } from '../services/urlService.js';
 
 export default async function outboundCallRoutes(fastify, options) {
   // Ruta que sirve el front end

@@ -8,9 +8,7 @@ import { startNgrokTunnel } from "./services/ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 
-// URL correcta de la aplicación
-const REPLIT_URL =
-  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+import { REPLIT_URL } from './services/urlService.js';
 
 export const startServer = async () => {
   const fastify = Fastify({
