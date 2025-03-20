@@ -119,11 +119,11 @@ fetch('{{publicUrl}}/outbound-call', {
 
     logsWs.onmessage = function(event) {
       const log = event.data;
-      console.log("Log recibido:", log);
-      logsElement.innerHTML += log + '\n';
-      setTimeout(() => {
+      if (log !== 'heartbeat') {
+        console.log("Log recibido:", log);
+        logsElement.innerHTML += log + '\n';
         logsElement.scrollTop = logsElement.scrollHeight;
-      }, 10);
+      }
     };
 
     logsWs.onclose = () => {
