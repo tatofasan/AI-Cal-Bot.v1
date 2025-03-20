@@ -8,7 +8,7 @@ import { startNgrokTunnel } from "./services/ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 
-import { REPLIT_URL } from './services/urlService.js';
+import { getReplitUrl, setReplitUrl } from './services/urlService.js';
 
 export const startServer = async () => {
   const fastify = Fastify({
