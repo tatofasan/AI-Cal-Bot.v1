@@ -191,21 +191,28 @@ export const setupMediaStream = async (ws) => {
         console.log(
           `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`,
         );
-        
+
         if (callSid) {
           try {
-            const { twilioClient } = await import('./twilioService.js');
+            const { twilioClient } = await import("./twilioService.js");
             // Verificar estado actual de la llamada
             const call = await twilioClient.calls(callSid).fetch();
-            
-            if (call.status !== 'completed' && call.status !== 'canceled') {
-              await twilioClient.calls(callSid).update({ status: 'completed' });
-              console.log(`[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`);
+
+            if (call.status !== "completed" && call.status !== "canceled") {
+              await twilioClient.calls(callSid).update({ status: "canceled" });
+              console.log(
+                `[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`,
+              );
             } else {
-              console.log(`[ElevenLabs] Llamada ${callSid} ya estaba finalizada (estado: ${call.status})`);
+              console.log(
+                `[ElevenLabs] Llamada ${callSid} ya estaba finalizada (estado: ${call.status})`,
+              );
             }
           } catch (error) {
-            console.error('[ElevenLabs] Error al verificar/finalizar la llamada:', error);
+            console.error(
+              "[ElevenLabs] Error al verificar/finalizar la llamada:",
+              error,
+            );
           }
         }
       });

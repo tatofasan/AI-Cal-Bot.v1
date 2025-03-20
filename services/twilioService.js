@@ -68,3 +68,4 @@ export const twilioCall = async ({ user_name, to_number }) => {
     throw error;
   }
 };
+export { twilioClient };
