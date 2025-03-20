@@ -32,7 +32,18 @@ export const startServer = async () => {
       maxPayload: 1048576, // 1MB max payload
     },
   });
-
+  // Registrar rutas
+  fastify.register(routes);
+  // Iniciar el servidor
+  try {
+    await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    console.log(`[Server] Escuchando en el puerto ${PORT}`);
+    //console.log(`[Server] Servidor disponible en: ${publicUrl}`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+ 
   // Obtener URL pública
   let publicUrl;
   try {
@@ -41,26 +52,16 @@ export const startServer = async () => {
   } catch (error) {
     console.error("[ngrok] Error con ngrok:", error.message);
     // Usar la URL correcta de Replit si ngrok falla
-    publicUrl = REPLIT_URL;
+    //publicUrl = REPLIT_URL;
     console.log(`[ngrok] Usando URL de Replit: ${publicUrl}`);
   }
 
   // Hacer disponible la URL pública para todas las rutas
-  fastify.decorate("publicUrl", publicUrl);
+  //fastify.decorate("publicUrl", publicUrl);
   global.publicUrl = publicUrl;
 
-  // Registrar rutas
-  fastify.register(routes);
 
-  // Iniciar el servidor
-  try {
-    await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`[Server] Escuchando en el puerto ${PORT}`);
-    console.log(`[Server] Servidor disponible en: ${publicUrl}`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
+
 
   return fastify;
 };
