@@ -1,12 +1,12 @@
+
 // src/routes/websockets.js
 import WebSocket from "ws";
 import { setupMediaStream } from "../services/elevenLabsService.js";
+import { logClients } from '../utils/logger.js';
 
-export default async function websocketsRoutes(fastify, options) {
+export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
-    const { logClients } = await import('../utils/logger.js');
-    
     // Registrar nuevo cliente
     logClients.add(ws);
     
@@ -38,7 +38,6 @@ export default async function websocketsRoutes(fastify, options) {
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
     console.info("[Server] Conexión WebSocket para stream de medios iniciada");
-    // Usar la implementación actualizada
     setupMediaStream(ws);
   });
 }
