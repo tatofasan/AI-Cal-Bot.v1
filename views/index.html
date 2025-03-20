@@ -54,6 +54,30 @@
       font-size: 12px;
       line-height: 1.4;
     }
+    /* Estilos para el chat box estilo WhatsApp */
+    .chat-container {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: #f0f0f0;
+    }
+    .chat-message {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 15px;
+      max-width: 70%;
+      clear: both;
+    }
+    .chat-message.server {
+      background-color: #e5e5ea;
+      float: left;
+    }
+    .chat-message.client {
+      background-color: #DCF8C6;
+      float: right;
+    }
   </style>
 </head>
 <body>
@@ -72,24 +96,11 @@
   </form>
 
   <div id="response"></div>
-
-  <h2>Cómo acceder desde un sitio externo</h2>
-  <p>Utiliza este código para hacer una solicitud desde cualquier sitio:</p>
-  <pre>
-fetch('{{publicUrl}}/outbound-call', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    prompt: "Eres un agente de ventas llamando para ofrecer un producto nuevo",
-    first_message: "Buenos días, mi nombre es Valeria Rodríguez, soy representante comercial de Smoke Off, me comunico con {{user_name}}?"
-  })
-})
-.then(response => response.json())
-.then(data => console.log('Respuesta:', data))
-.catch(error => console.error('Error:', error));
-  </pre>
+  <h2>Conversacion Transcripta</h2>
+  <!-- Chat box estilo WhatsApp -->
+  <div class="chat-container" id="chatBox">
+    <!-- Los mensajes se inyectarán aquí desde el backend -->
+  </div>
 
   <h2>Logs del servidor</h2>
   <div id="logs"></div>
@@ -120,10 +131,34 @@ fetch('{{publicUrl}}/outbound-call', {
     logsWs.onmessage = function(event) {
       const log = event.data;
       console.log("Log recibido:", log);
+      
+      // Mostrar el log en el div de logs
       logsElement.innerHTML += log + '\n';
       setTimeout(() => {
         logsElement.scrollTop = logsElement.scrollHeight;
       }, 10);
+      
+      // Referencia al contenedor de chat
+      const chatBox = document.getElementById('chatBox');
+      
+      // Procesar mensaje de respuesta del agente
+      if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
+        const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "chat-message server"; // Mensaje del servidor (alineado a la izquierda)
+        messageDiv.textContent = messageText;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+      // Procesar mensaje de transcripción del usuario
+      else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
+        const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "chat-message client"; // Mensaje del cliente (alineado a la derecha)
+        messageDiv.textContent = messageText;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
     };
 
     logsWs.onclose = () => {
