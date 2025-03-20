@@ -73,93 +73,23 @@
 
   <div id="response"></div>
 
-  <h2>Transcripción de la llamada</h2>
-  <div class="chat-container">
-    <div class="chat-messages" id="chatMessages">
-      <!-- Los mensajes se agregarán aquí dinámicamente -->
-    </div>
-  </div>
-
-  <style>
-    .chat-container {
-      max-width: 100%;
-      margin: 20px 0;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      background: #f5f5f5;
-    }
-
-    .chat-messages {
-      padding: 15px;
-      height: 400px;
-      overflow-y: auto;
-    }
-
-    .message {
-      margin: 8px 0;
-      max-width: 80%;
-      padding: 8px 12px;
-      border-radius: 8px;
-      position: relative;
-      clear: both;
-    }
-
-    .agent-message {
-      background: #dcf8c6;
-      float: right;
-      margin-left: 20%;
-    }
-
-    .user-message {
-      background: white;
-      float: left;
-      margin-right: 20%;
-    }
-
-    .message-time {
-      font-size: 0.7em;
-      color: #666;
-      margin-top: 4px;
-      text-align: right;
-    }
-  </style>
-
-  <script>
-    // Modificar el manejador de mensajes WebSocket para mostrar los mensajes en el chat
-    logsWs.onmessage = function(event) {
-      const log = event.data;
-      console.log("Log recibido:", log);
-      
-      // Actualizar logs generales
-      logsElement.innerHTML += log + '\n';
-      logsElement.scrollTop = logsElement.scrollHeight;
-
-      // Procesar mensajes para el chat
-      const chatMessages = document.getElementById('chatMessages');
-      
-      if (log.includes('[LOG] [Twilio] Respuesta del agente:')) {
-        const message = log.split('[LOG] [Twilio] Respuesta del agente:')[1].trim();
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message agent-message';
-        messageDiv.innerHTML = `
-          ${message}
-          <div class="message-time">${new Date().toLocaleTimeString()}</div>
-        `;
-        chatMessages.appendChild(messageDiv);
-      } else if (log.includes('[LOG] [Twilio] Transcripción del usuario:')) {
-        const message = log.split('[LOG] [Twilio] Transcripción del usuario:')[1].trim();
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message user-message';
-        messageDiv.innerHTML = `
-          ${message}
-          <div class="message-time">${new Date().toLocaleTimeString()}</div>
-        `;
-        chatMessages.appendChild(messageDiv);
-      }
-
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    };
-  </script>
+  <h2>Cómo acceder desde un sitio externo</h2>
+  <p>Utiliza este código para hacer una solicitud desde cualquier sitio:</p>
+  <pre>
+fetch('{{publicUrl}}/outbound-call', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: "Eres un agente de ventas llamando para ofrecer un producto nuevo",
+    first_message: "Buenos días, mi nombre es Valeria Rodríguez, soy representante comercial de Smoke Off, me comunico con {{user_name}}?"
+  })
+})
+.then(response => response.json())
+.then(data => console.log('Respuesta:', data))
+.catch(error => console.error('Error:', error));
+  </pre>
 
   <h2>Logs del servidor</h2>
   <div id="logs"></div>
