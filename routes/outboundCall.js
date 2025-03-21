@@ -3,13 +3,15 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { twilioCall } from "../services/twilioService.js";
+import { getPublicUrl } from "../services/urlService.js"; // Import the getPublicUrl function
+
 
 // Para obtener __dirname en ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // URL correcta de Replit
-const REPLIT_URL = "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+//const REPLIT_URL = "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
 export default async function outboundCallRoutes(fastify, options) {
   // Ruta que sirve el front end
@@ -18,7 +20,7 @@ export default async function outboundCallRoutes(fastify, options) {
       // Lee el archivo HTML - corregimos la ruta relativa
       let html = fs.readFileSync(path.join(__dirname, "../views/index.html"), "utf8");
       // Usar la URL correcta
-      const publicUrl = REPLIT_URL;
+      const publicUrl = getPublicUrl();
       // Reemplaza el placeholder {{publicUrl}} con el valor actual
       html = html.replace(/{{publicUrl}}/g, publicUrl);
       return reply.type("text/html").send(html);
@@ -66,7 +68,7 @@ export default async function outboundCallRoutes(fastify, options) {
       const first_message = request.query.first_message || "";
 
       // Usar la URL correcta
-      const publicUrl = REPLIT_URL;
+      const publicUrl = getPublicUrl();
 
       // Construir la URL del WebSocket
       let wsProtocol = publicUrl.startsWith('https://') ? 'wss://' : 'ws://';

@@ -8,9 +8,7 @@ import { startNgrokTunnel } from "./services/ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 
-// URL correcta de la aplicación
-const REPLIT_URL =
-  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
+import { getPublicUrl } from './services/urlService.js';
 
 export const startServer = async () => {
   const fastify = Fastify({
@@ -43,7 +41,7 @@ export const startServer = async () => {
   } catch (error) {
     console.error("[ngrok] Error con ngrok:", error.message);
     // Usar la URL correcta de Replit si ngrok falla
-    publicUrl = REPLIT_URL;
+    publicUrl = getPublicUrl();
     console.log(`[ngrok] Usando URL de Replit: ${publicUrl}`);
   }
 
