@@ -71,9 +71,9 @@ export default async function outboundCallRoutes(fastify, options) {
       const publicUrl = getPublicUrl();
 
       // Construir la URL del WebSocket
-      let wsProtocol = publicUrl.startsWith('https://') ? 'wss://' : 'ws://';
-      let wsHost = publicUrl.replace(/^https?:\/\//, '');
-      let wsUrl = `${wsProtocol}${wsHost}/outbound-media-stream`;
+      const baseUrl = publicUrl.startsWith('http') ? publicUrl : `https://${publicUrl}`;
+      const wsHost = baseUrl.replace(/^https?:\/\//, '');
+      const wsUrl = `wss://${wsHost}/outbound-media-stream`;
 
       console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl}`);
 
