@@ -6,24 +6,6 @@ export const startNgrokTunnel = async (port) => {
   // Check if running in Replit environment
   const isReplitEnvironment = process.env.REPL_ID || process.env.REPL_SLUG;
 
-  // If in Replit, skip ngrok attempt and use Replit URL directly
-  if (isReplitEnvironment) {
-    let replitUrl;
-
-    if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
-      replitUrl = `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.replit.dev`;
-    } else if (process.env.REPL_SLUG) {
-      replitUrl = `https://${process.env.REPL_SLUG}.replit.dev`;
-    } else {
-      // Fallback for other Replit URL formats
-      replitUrl = process.env.REPLIT_URL || `https://workspace.replit.dev`;
-    }
-
-    logger.info(
-      `[ngrok] Running in Replit environment. Using Replit URL: ${replitUrl}`,
-    );
-    return replitUrl;
-  }
 
   // If not in Replit, attempt to use ngrok normally
   logger.info("[ngrok] Attempting to connect to ngrok...");

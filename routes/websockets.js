@@ -1,24 +1,17 @@
-
 // src/routes/websockets.js
 import WebSocket from "ws";
 import { setupMediaStream } from "../services/elevenLabsService.js";
-import { logClients } from '../utils/logger.js';
 
-export default function websocketsRoutes(fastify, options) {
+export default async function websocketsRoutes(fastify, options) {
   // WebSocket para logs
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
-    // Registrar nuevo cliente
-    logClients.add(ws);
-    
+    // Aquí gestionas la conexión y envías logs al cliente
     ws.send("[INFO] Conexión establecida con logs");
-    
+
+    // Enviar la URL pública actual
     if (fastify.publicUrl) {
       ws.send(`[INFO] URL pública: ${fastify.publicUrl}`);
     }
-
-    ws.on('close', () => {
-      logClients.delete(ws);
-    });
 
     ws.on("message", (message) => {
       if (message.toString() === "heartbeat") {
@@ -38,6 +31,7 @@ export default function websocketsRoutes(fastify, options) {
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
     console.info("[Server] Conexión WebSocket para stream de medios iniciada");
+    // Usar la implementación actualizada
     setupMediaStream(ws);
   });
 }

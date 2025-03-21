@@ -8,21 +8,17 @@ import { twilioCall } from "../services/twilioService.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { getReplitUrl } from '../services/urlService.js';
+// URL correcta de Replit
+const REPLIT_URL = "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
 export default async function outboundCallRoutes(fastify, options) {
   // Ruta que sirve el front end
   fastify.get("/", async (request, reply) => {
     try {
       // Lee el archivo HTML - corregimos la ruta relativa
-   
-      let html = fs.readFileSync(
-        path.join(__dirname, "../views/index.html"),
-        "utf8",
-      );
-      
+      let html = fs.readFileSync(path.join(__dirname, "../views/index.html"), "utf8");
       // Usar la URL correcta
-      const publicUrl = getReplitUrl();
+      const publicUrl = REPLIT_URL;
       // Reemplaza el placeholder {{publicUrl}} con el valor actual
       html = html.replace(/{{publicUrl}}/g, publicUrl);
       return reply.type("text/html").send(html);
@@ -42,15 +38,16 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { user_name = "el titular de la linea", to_number } = request.body;
+    const { prompt, first_message, to_number } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
-      user_name,
+      prompt,
+      first_message,
       to_number: to_number || "+541161728140",
     });
 
     try {
-      const callResult = await twilioCall({ user_name, to_number });
+      const callResult = await twilioCall({ prompt, first_message, to_number });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
@@ -65,14 +62,15 @@ export default async function outboundCallRoutes(fastify, options) {
   // Ruta para generar TwiML
   fastify.all("/outbound-call-twiml", async (request, reply) => {
     try {
-      const user_name = request.query.user_name || "el titular de la linea";
+      const prompt = request.query.prompt || "";
+      const first_message = request.query.first_message || "";
 
       // Usar la URL correcta
-      const publicUrl = getReplitUrl();
+      const publicUrl = REPLIT_URL;
 
       // Construir la URL del WebSocket
-      let wsProtocol = publicUrl.startsWith("https://") ? "wss://" : "ws://";
-      let wsHost = publicUrl.replace(/^https?:\/\//, "");
+      let wsProtocol = publicUrl.startsWith('https://') ? 'wss://' : 'ws://';
+      let wsHost = publicUrl.replace(/^https?:\/\//, '');
       let wsUrl = `${wsProtocol}${wsHost}/outbound-media-stream`;
 
       console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl}`);
@@ -82,7 +80,8 @@ export default async function outboundCallRoutes(fastify, options) {
 <Response>
   <Connect>
     <Stream url="${wsUrl}">
-      <Parameter name="user_name" value="${user_name}" />
+      <Parameter name="prompt" value="${prompt}" />
+      <Parameter name="first_message" value="${first_message}" />
     </Stream>
   </Connect>
 </Response>`;
