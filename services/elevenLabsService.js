@@ -3,8 +3,7 @@ import WebSocket from "ws";
 import fetch from "node-fetch";
 
 // Configuración de ElevenLabs
-const ELEVENLABS_API_KEY =
-  "sk_6699a2f7d7c3982f82de20478e62ed188263055e53c25a88";
+const ELEVENLABS_API_KEY ="sk_6699a2f7d7c3982f82de20478e62ed188263055e53c25a88";
 const ELEVENLABS_AGENT_ID = "KmPa2LWqjFasERSKkFsg";
 
 /**

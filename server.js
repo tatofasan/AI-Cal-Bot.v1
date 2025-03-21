@@ -8,7 +8,7 @@ import { startNgrokTunnel } from "./services/ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 
-import { getPublicUrl } from './services/urlService.js';
+import { getPublicUrl } from "./services/urlService.js";
 
 export const startServer = async () => {
   const fastify = Fastify({
@@ -34,20 +34,17 @@ export const startServer = async () => {
   });
 
   // Obtener URL pública
-  let publicUrl;
+  let publicUrl = getPublicUrl();
   try {
     publicUrl = await startNgrokTunnel(PORT);
     console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
   } catch (error) {
     console.error("[ngrok] Error con ngrok:", error.message);
-    // Usar la URL correcta de Replit si ngrok falla
-    publicUrl = getPublicUrl();
     console.log(`[ngrok] Usando URL de Replit: ${publicUrl}`);
   }
-
+  publicUrl = getPublicUrl();
   // Hacer disponible la URL pública para todas las rutas
   fastify.decorate("publicUrl", publicUrl);
-  global.publicUrl = publicUrl;
 
   // Registrar rutas
   fastify.register(routes);
