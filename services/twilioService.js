@@ -31,7 +31,9 @@ export const twilioCall = async ({ prompt, first_message, to_number }) => {
   const publicUrl = getPublicUrl();
 
   // Construir la URL para TwiML con parámetros codificados
-  const twimlUrl = `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
+  // Ensure the URL has https:// prefix
+  const baseUrl = publicUrl.startsWith('http') ? publicUrl : `https://${publicUrl}`;
+  const twimlUrl = `${baseUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
     prompt || "",
   )}&first_message=${encodeURIComponent(first_message || "")}`;
 
