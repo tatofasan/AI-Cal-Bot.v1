@@ -1,14 +1,12 @@
 // src/services/twilioService.js
 import Twilio from "twilio";
-
+import { getPublicUrl } from "../services/urlService.js";
 // Constantes
 const TWILIO_ACCOUNT_SID = "ACb593668600bd12b6cc9289e1b8e4f74d";
 const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
-const REPLIT_URL =
-  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
 // Crear cliente de Twilio
 let twilioClient;
@@ -30,7 +28,7 @@ export const twilioCall = async ({ prompt, first_message, to_number }) => {
   const destinationNumber = to_number || TO_PHONE_NUMBER;
 
   // Usar la URL forzada para asegurar que Twilio se conecte correctamente
-  const publicUrl = REPLIT_URL;
+  const publicUrl = getPublicUrl();
 
   // Construir la URL para TwiML con parámetros codificados
   const twimlUrl = `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
