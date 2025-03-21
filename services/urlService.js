@@ -1,14 +1,6 @@
 // src/services/urlService.js
 // Simple service to store and retrieve the public URL across the application
 
-let REPLIT_URL = "";
-
-export const setReplitUrl = (url) => {
-  REPLIT_URL = url;
-};
-
-export const getReplitUrl = () => REPLIT_URL;
-
 // Default URL is null, will be set after ngrok/server starts
 let publicUrl = null;
 
@@ -18,7 +10,7 @@ let publicUrl = null;
  */
 export const setPublicUrl = (url) => {
   if (!url) {
-    console.warn("[URLService] Attempting to set empty publicUrl");
+    console.warn('[URLService] Attempting to set empty publicUrl');
     return;
   }
 
@@ -26,7 +18,7 @@ export const setPublicUrl = (url) => {
   try {
     // Asegurarse de que la URL tenga un protocolo
     let normalizedUrl = url;
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
       normalizedUrl = `https://${url}`;
     }
 
@@ -49,9 +41,7 @@ export const setPublicUrl = (url) => {
  */
 export const getPublicUrl = () => {
   if (!publicUrl) {
-    console.warn(
-      "[URLService] Attempting to get publicUrl before it has been set",
-    );
+    console.warn('[URLService] Attempting to get publicUrl before it has been set');
   }
   return publicUrl;
 };

@@ -75,8 +75,13 @@ export const setupMediaStream = async (ws) => {
         console.log("[ElevenLabs] WebSocket conectado a ElevenLabs");
 
         try {
-          // Extraer el nombre del usuario de los parámetros
-          const userName = customParameters?.user_name || "Usuario";
+          // Extraer parámetros para el prompt y first_message
+          const promptValue =
+            customParameters?.prompt ||
+            "Eres un agente de servicio al cliente llamando para verificar el estado de un pedido reciente.";
+          const firstMessageValue =
+            customParameters?.first_message ||
+            "Hola, soy un representante de servicio al cliente.";
 
           console.log("[ElevenLabs] Enviando configuración inicial");
 
@@ -84,8 +89,16 @@ export const setupMediaStream = async (ws) => {
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
-              user_name: userName,
+              user_name: "Ignacio",
             },
+            /* conversation_config_override: {
+              agent: {
+                prompt: {
+                  prompt: promptValue,
+                },
+                first_message: firstMessageValue,
+              },
+            },*/
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));
@@ -187,34 +200,10 @@ export const setupMediaStream = async (ws) => {
         console.error("[ElevenLabs] Error en WebSocket:", error);
       });
 
-      elevenLabsWs.on("close", async (code, reason) => {
+      elevenLabsWs.on("close", (code, reason) => {
         console.log(
           `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`,
         );
-
-        if (callSid) {
-          try {
-            const { twilioClient } = await import("./twilioService.js");
-            // Verificar estado actual de la llamada
-            const call = await twilioClient.calls(callSid).fetch();
-
-            if (call.status !== "completed" && call.status !== "canceled") {
-              await twilioClient.calls(callSid).update({ status: "canceled" });
-              console.log(
-                `[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`,
-              );
-            } else {
-              console.log(
-                `[ElevenLabs] Llamada ${callSid} ya estaba finalizada (estado: ${call.status})`,
-              );
-            }
-          } catch (error) {
-            console.error(
-              "[ElevenLabs] Error al verificar/finalizar la llamada:",
-              error,
-            );
-          }
-        }
       });
     } catch (error) {
       console.error("[ElevenLabs] Error configurando ElevenLabs:", error);

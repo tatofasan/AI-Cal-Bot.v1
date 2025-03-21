@@ -2,46 +2,72 @@
 import Fastify from "fastify";
 import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
+import fastifyCors from "@fastify/cors";
 import routes from "./routes/index.js";
 import { startNgrokTunnel } from "./services/ngrokService.js";
 
-const PORT =  8000;
-// Inicializamos Fastify sin opciones adicionales (sin trustProxy)
-const fastify = Fastify();
+const PORT = process.env.PORT || 8000;
 
-// Registrar plugins
-await fastify.register(fastifyFormBody);
-await fastify.register(fastifyWs);
-// Registrar rutas
-fastify.register(routes);
+// URL correcta de la aplicación
+const REPLIT_URL =
+  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
 export const startServer = async () => {
+  const fastify = Fastify({
+    logger: true,
+    trustProxy: true,
+  });
 
+  // Registrar plugins
+  try {
+    await fastify.register(fastifyCors);
+  } catch (err) {
+    console.warn(
+      "[Server] Error registrando CORS, continuando sin ello:",
+      err.message,
+    );
+  }
 
+  await fastify.register(fastifyFormBody);
+  await fastify.register(fastifyWs, {
+    options: {
+      maxPayload: 1048576, // 1MB max payload
+    },
+  });
+
+  // Obtener URL pública
+  let publicUrl;
+  try {
+    publicUrl = await startNgrokTunnel(PORT);
+    console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
+  } catch (error) {
+    console.error("[ngrok] Error con ngrok:", error.message);
+    // Usar la URL correcta de Replit si ngrok falla
+    publicUrl = REPLIT_URL;
+    console.log(`[ngrok] Usando URL de Replit: ${publicUrl}`);
+  }
+
+  // Hacer disponible la URL pública para todas las rutas
+  fastify.decorate("publicUrl", publicUrl);
+  global.publicUrl = publicUrl;
+
+  // Registrar rutas
+  fastify.register(routes);
 
   // Iniciar el servidor
   try {
     await fastify.listen({ port: PORT, host: "0.0.0.0" });
-    console.log(`[Server] Listening on port ${PORT}`);
+    console.log(`[Server] Escuchando en el puerto ${PORT}`);
+    console.log(`[Server] Servidor disponible en: ${publicUrl}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
   }
 
-  // Obtener la URL pública directamente desde ngrok
-  try {
-    const publicUrl = await startNgrokTunnel(PORT);
-    console.log(`[ngrok] Tunnel created successfully. Public URL: ${publicUrl}`);
-    // Guardamos la URL pública en una variable global para su uso en toda la aplicación
-    global.publicUrl = publicUrl;
-  } catch (error) {
-    console.error("[ngrok] Error connecting to ngrok:", error.message);
-  }
-
   return fastify;
 };
 
-// Iniciar el servidor si este archivo se ejecuta directamente
+// Si este archivo se ejecuta directamente, iniciar el servidor
 if (import.meta.url === `file://${process.argv[1]}`) {
   startServer();
 }

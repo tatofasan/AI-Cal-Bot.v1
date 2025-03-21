@@ -7,7 +7,8 @@ const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
-import { getReplitUrl } from './urlService.js';
+const REPLIT_URL =
+  "https://7ef42203-2693-4235-a62c-c257fc10813e-00-2y0p0wpxah3dz.picard.replit.dev";
 
 // Crear cliente de Twilio
 let twilioClient;
@@ -19,19 +20,22 @@ try {
   throw error;
 }
 
-export const twilioCall = async ({ user_name, to_number }) => {
+export const twilioCall = async ({ prompt, first_message, to_number }) => {
   console.log("[Twilio] Iniciando llamada con parámetros:", {
-    userName: user_name,
+    promptLength: prompt?.length,
+    firstMessageLength: first_message?.length,
     toNumber: to_number || TO_PHONE_NUMBER,
   });
 
   const destinationNumber = to_number || TO_PHONE_NUMBER;
 
   // Usar la URL forzada para asegurar que Twilio se conecte correctamente
-  const publicUrl = getReplitUrl();
+  const publicUrl = REPLIT_URL;
 
   // Construir la URL para TwiML con parámetros codificados
-  const twimlUrl = `${publicUrl}/outbound-call-twiml?user_name=${encodeURIComponent(user_name || "")}`;
+  const twimlUrl = `${publicUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
+    prompt || "",
+  )}&first_message=${encodeURIComponent(first_message || "")}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
@@ -43,7 +47,6 @@ export const twilioCall = async ({ user_name, to_number }) => {
       to: destinationNumber,
       url: twimlUrl,
       byoc: TWILIO_BYOC_TRUNK_SID,
-      machineDetection: true,
     };
 
     console.log("[Twilio] Opciones de llamada:", callOptions);
@@ -67,4 +70,3 @@ export const twilioCall = async ({ user_name, to_number }) => {
     throw error;
   }
 };
-export { twilioClient };
