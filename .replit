@@ -34,4 +34,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node index.js"
+args = "/nix/store/rrz8cqhldyl17bbs60g7d8vbaadkxc40-nodejs-20.18.1-wrapped/bin/node index.js"
