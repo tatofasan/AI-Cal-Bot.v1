@@ -9,5 +9,5 @@ let publicUrl = null;
  * @returns {string} The public URL
  */
 export const getPublicUrl = () => {
-  return process.env.REPLIT_DOMAINS;
+  return `https://${process.env.REPLIT_DOMAINS}`;
 };
