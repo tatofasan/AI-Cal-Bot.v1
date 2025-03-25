@@ -3,7 +3,8 @@ import WebSocket from "ws";
 import fetch from "node-fetch";
 
 // Configuración de ElevenLabs
-const ELEVENLABS_API_KEY ="sk_6699a2f7d7c3982f82de20478e62ed188263055e53c25a88";
+const ELEVENLABS_API_KEY =
+  "sk_6699a2f7d7c3982f82de20478e62ed188263055e53c25a88";
 const ELEVENLABS_AGENT_ID = "KmPa2LWqjFasERSKkFsg";
 
 /**
@@ -74,30 +75,14 @@ export const setupMediaStream = async (ws) => {
         console.log("[ElevenLabs] WebSocket conectado a ElevenLabs");
 
         try {
-          // Extraer parámetros para el prompt y first_message
-          const promptValue =
-            customParameters?.prompt ||
-            "Eres un agente de servicio al cliente llamando para verificar el estado de un pedido reciente.";
-          const firstMessageValue =
-            customParameters?.first_message ||
-            "Hola, soy un representante de servicio al cliente.";
-
           console.log("[ElevenLabs] Enviando configuración inicial");
 
           // Configuración inicial
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
-              user_name: "Ignacio",
+              user_name: "el titular de la linea",
             },
-            /* conversation_config_override: {
-              agent: {
-                prompt: {
-                  prompt: promptValue,
-                },
-                first_message: firstMessageValue,
-              },
-            },*/
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));
