@@ -180,6 +180,11 @@
         logsElement.innerHTML += "[Conexión a logs cerrada]\n";
       };
 
+      function clearLogsAndChat() {
+        document.getElementById("logs").innerHTML = "";
+        document.getElementById("chatBox").innerHTML = "";
+      }
+
       document
         .getElementById("callForm")
         .addEventListener("submit", async (e) => {
@@ -191,6 +196,8 @@
             const userNameValue = document.getElementById("userName").value;
             const toNumberValue =
               document.getElementById("toNumber").value || null;
+
+            clearLogsAndChat(); // Added this line
 
             const response = await fetch("/outbound-call", {
               method: "POST",

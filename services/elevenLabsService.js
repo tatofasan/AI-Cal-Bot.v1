@@ -254,11 +254,33 @@ export const setupMediaStream = async (ws) => {
     }
   });
 
+  // Función para reiniciar el estado
+  const resetState = () => {
+    streamSid = null;
+    callSid = null;
+    customParameters = {};
+    if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+      elevenLabsWs.close();
+    }
+    elevenLabsWs = null;
+  };
+
   // Manejar cierre de conexión
   ws.on("close", () => {
     console.log("[Twilio] Cliente desconectado");
-    if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-      elevenLabsWs.close();
+    resetState();
+  });
+
+  // Manejar evento de stop
+  ws.on("message", (message) => {
+    try {
+      const msg = JSON.parse(message);
+      if (msg.event === "stop") {
+        console.log(`[Twilio] Stream ${streamSid} finalizado`);
+        resetState();
+      }
+    } catch (error) {
+      console.error("[Twilio] Error procesando mensaje de cierre:", error);
     }
   });
 };
