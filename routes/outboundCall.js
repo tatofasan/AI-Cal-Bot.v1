@@ -40,16 +40,17 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { prompt, first_message, to_number } = request.body;
+    const { prompt, first_message, to_number, user_name } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
       prompt,
       first_message,
+      user_name,
       to_number: to_number || "+541161728140",
     });
 
     try {
-      const callResult = await twilioCall({ prompt, first_message, to_number });
+      const callResult = await twilioCall({ prompt, first_message, to_number, user_name });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
@@ -78,12 +79,14 @@ export default async function outboundCallRoutes(fastify, options) {
       console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl}`);
 
       // Generar TwiML
+      const user_name = request.query.user_name || "el titular de la linea";
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${wsUrl}">
       <Parameter name="prompt" value="${prompt}" />
       <Parameter name="first_message" value="${first_message}" />
+      <Parameter name="user_name" value="${user_name}" />
     </Stream>
   </Connect>
 </Response>`;
