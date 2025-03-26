@@ -81,8 +81,7 @@ export const setupMediaStream = async (ws) => {
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
-              user_name: "el titular de la linea",
-            },
+              user_name: customParameters.nombre || "el titular de la linea"},
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));
