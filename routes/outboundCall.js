@@ -40,14 +40,15 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { to_number } = request.body;
+    const { to_number, nombre } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
       to_number: to_number || "+541161728140",
+      nombre
     });
 
     try {
-      const callResult = await twilioCall({ to_number });
+      const callResult = await twilioCall({ to_number, nombre });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
@@ -82,6 +83,7 @@ export default async function outboundCallRoutes(fastify, options) {
     <Stream url="${wsUrl}">
       <Parameter name="prompt" value="${prompt}" />
       <Parameter name="first_message" value="${first_message}" />
+      <Parameter name="nombre" value="${request.query.nombre || ''}" />
     </Stream>
   </Connect>
 </Response>`;
