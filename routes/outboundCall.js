@@ -40,16 +40,14 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { prompt, first_message, to_number } = request.body;
+    const { to_number } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
-      prompt,
-      first_message,
       to_number: to_number || "+541161728140",
     });
 
     try {
-      const callResult = await twilioCall({ prompt, first_message, to_number });
+      const callResult = await twilioCall({ to_number });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
