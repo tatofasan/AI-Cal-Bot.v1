@@ -35,7 +35,7 @@ export const twilioCall = async ({ prompt, first_message, to_number }) => {
   const baseUrl = publicUrl.startsWith('http') ? publicUrl : `https://${publicUrl}`;
   const twimlUrl = `${baseUrl}/outbound-call-twiml?prompt=${encodeURIComponent(
     prompt || "",
-  )}&first_message=${encodeURIComponent(first_message || "")}&user_name=${encodeURIComponent(user_name || "")}`;
+  )}&first_message=${encodeURIComponent(first_message || "")}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
