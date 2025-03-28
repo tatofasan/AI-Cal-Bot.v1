@@ -161,15 +161,6 @@ export const setupMediaStream = async (ws) => {
               console.log(
                 `[Twilio] Respuesta del agente: ${message.agent_response_event?.agent_response}`,
               );
-              // Si el bot decide terminar la llamada
-              if (message.agent_response_event?.terminate_call) {
-                console.log("[ElevenLabs] Bot solicitó terminar la llamada");
-                ws.send(JSON.stringify({
-                  event: "stop",
-                  streamSid
-                }));
-                resetState();
-              }
               break;
 
             case "user_transcript":
@@ -277,13 +268,6 @@ export const setupMediaStream = async (ws) => {
   // Manejar cierre de conexión
   ws.on("close", () => {
     console.log("[Twilio] Cliente desconectado");
-    // Notificar a ElevenLabs
-    if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-      elevenLabsWs.send(JSON.stringify({
-        type: "call_terminated",
-        reason: "client_disconnected"
-      }));
-    }
     resetState();
   });
 
@@ -293,13 +277,6 @@ export const setupMediaStream = async (ws) => {
       const msg = JSON.parse(message);
       if (msg.event === "stop") {
         console.log(`[Twilio] Stream ${streamSid} finalizado`);
-        // Notificar a ElevenLabs
-        if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-          elevenLabsWs.send(JSON.stringify({
-            type: "call_terminated",
-            reason: "stream_stopped"
-          }));
-        }
         resetState();
       }
     } catch (error) {
