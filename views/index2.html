@@ -152,6 +152,31 @@
         const [chatMessages, setChatMessages] = useState([]);
         const [isConnected, setIsConnected] = useState(false);
         const [isLoading, setIsLoading] = useState(false);
+        const audioContext = useRef(null);
+        
+        // Función para reproducir audio desde base64
+        const playAudio = async (base64Audio) => {
+          if (!audioContext.current) {
+            audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          
+          const audioData = atob(base64Audio);
+          const arrayBuffer = new ArrayBuffer(audioData.length);
+          const view = new Uint8Array(arrayBuffer);
+          for (let i = 0; i < audioData.length; i++) {
+            view[i] = audioData.charCodeAt(i);
+          }
+          
+          try {
+            const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+            const source = audioContext.current.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.current.destination);
+            source.start(0);
+          } catch (error) {
+            console.error('Error reproduciendo audio:', error);
+          }
+        };
         
         const logsRef = useRef(null);
         const chatRef = useRef(null);
@@ -199,13 +224,29 @@
             const message = event.data;
             addLog(message);
             
-            // Procesar mensajes para el chat
-            if (message.includes("[Twilio] Respuesta del agente:")) {
-              const agentMessage = message.split("[Twilio] Respuesta del agente:")[1].trim();
-              addChatMessage(agentMessage, 'server');
-            } else if (message.includes("[Twilio] Transcripción del usuario:")) {
-              const userMessage = message.split("[Twilio] Transcripción del usuario:")[1].trim();
-              addChatMessage(userMessage, 'client');
+            try {
+              // Intentar parsear el mensaje como JSON
+              const jsonMessage = JSON.parse(message);
+              
+              // Si es un mensaje de audio
+              if (jsonMessage.type === 'audio') {
+                if (jsonMessage.source === 'elevenlabs' && jsonMessage.audio) {
+                  // Reproducir audio del bot
+                  playAudio(jsonMessage.audio);
+                } else if (jsonMessage.source === 'client' && jsonMessage.audio) {
+                  // Reproducir audio del cliente
+                  playAudio(jsonMessage.audio);
+                }
+              }
+            } catch (e) {
+              // Si no es JSON, procesar como mensaje de texto normal
+              if (message.includes("[Twilio] Respuesta del agente:")) {
+                const agentMessage = message.split("[Twilio] Respuesta del agente:")[1].trim();
+                addChatMessage(agentMessage, 'server');
+              } else if (message.includes("[Twilio] Transcripción del usuario:")) {
+                const userMessage = message.split("[Twilio] Transcripción del usuario:")[1].trim();
+                addChatMessage(userMessage, 'client');
+              }
             }
           };
           
