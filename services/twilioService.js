@@ -1,4 +1,3 @@
-// src/services/twilioService.js
 import Twilio from "twilio";
 import { getPublicUrl } from "../services/urlService.js";
 // Constantes
@@ -21,7 +20,7 @@ try {
 export const twilioCall = async ({ to_number, nombre }) => {
   console.log("[Twilio] Iniciando llamada con parámetros:", {
     toNumber: to_number || TO_PHONE_NUMBER,
-    nombre
+    nombre,
   });
 
   const destinationNumber = to_number || TO_PHONE_NUMBER;
@@ -31,8 +30,12 @@ export const twilioCall = async ({ to_number, nombre }) => {
 
   // Construir la URL para TwiML con parámetros codificados
   // Ensure the URL has https:// prefix
-  const baseUrl = publicUrl.startsWith('http') ? publicUrl : `https://${publicUrl}`;
-  const twimlUrl = `${baseUrl}/outbound-call-twiml?nombre=${encodeURIComponent(nombre || '')}`;
+  const baseUrl = publicUrl.startsWith("http")
+    ? publicUrl
+    : `https://${publicUrl}`;
+  const twimlUrl = `${baseUrl}/outbound-call-twiml?nombre=${encodeURIComponent(
+    nombre || "",
+  )}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
@@ -68,3 +71,23 @@ export const twilioCall = async ({ to_number, nombre }) => {
   }
 };
 
+export const hangupCall = async (callSid) => {
+  console.log("[Twilio] hangupCall invocado para callSid:", callSid);
+  try {
+    const call = await twilioClient
+      .calls(callSid)
+      .update({ status: "completed" });
+    console.log(
+      "[Twilio] Llamada finalizada exitosamente para callSid:",
+      callSid,
+    );
+    return call;
+  } catch (error) {
+    console.error(
+      "[Twilio] Error finalizando llamada para callSid:",
+      callSid,
+      error,
+    );
+    throw error;
+  }
+};
