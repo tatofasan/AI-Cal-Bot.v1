@@ -360,7 +360,7 @@
                 {response && (
                   <div className={`alert ${response.success ? 'alert-success' : 'alert-danger'} mt-3`} role="alert">
                     {response.success ? (
-                      <><i className="fas fa-check-circle me-2"></i> Llamada iniciada con éxito (SID: {response.call_sid})</>
+                      <><i className="fas fa-check-circle me-2"></i> Llamada iniciada con éxito {response.call_sid ? `(SID: ${response.call_sid})` : ''}</>
                     ) : (
                       <><i className="fas fa-exclamation-triangle me-2"></i> Error: {response.error}</>
                     )}
