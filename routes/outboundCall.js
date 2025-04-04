@@ -40,16 +40,17 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { user_name = "el titular de la linea", to_number, voice_id } = request.body;
+    const { user_name = "el titular de la linea", to_number, voice_id, voice_name } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
       user_name,
       to_number: to_number || "+541161728140",
       voice_id,
+      voice_name
     });
 
     try {
-      const callResult = await twilioCall({ user_name, to_number, voice_id });
+      const callResult = await twilioCall({ user_name, to_number, voice_id, voice_name });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
@@ -66,10 +67,10 @@ export default async function outboundCallRoutes(fastify, options) {
     try {
       const user_name = request.query.user_name || "el titular de la linea";
       const voice_id = request.query.voice_id || "";
+      const voice_name = request.query.voice_name || '';
 
       // Usar la URL correcta
       const publicUrl = REPLIT_URL;
-      const voice_name = request.query.voice_name || '';
 
       // Construir la URL del WebSocket
       let wsProtocol = publicUrl.startsWith("https://") ? "wss://" : "ws://";
@@ -85,7 +86,7 @@ export default async function outboundCallRoutes(fastify, options) {
     <Stream url="${wsUrl}">
       <Parameter name="user_name" value="${user_name}" />
       <Parameter name="voice_id" value="${voice_id}" />
-      <Parameter name="voice_name" value="${request.query.voice_name || ''}" />
+      <Parameter name="voice_name" value="${voice_name}" />
     </Stream>
   </Connect>
 </Response>`;
