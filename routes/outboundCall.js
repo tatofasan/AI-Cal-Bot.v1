@@ -69,13 +69,14 @@ export default async function outboundCallRoutes(fastify, options) {
 
       // Usar la URL correcta
       const publicUrl = REPLIT_URL;
+      const voice_name = request.query.voice_name || '';
 
       // Construir la URL del WebSocket
       let wsProtocol = publicUrl.startsWith("https://") ? "wss://" : "ws://";
       let wsHost = publicUrl.replace(/^https?:\/\//, "");
       let wsUrl = `${wsProtocol}${wsHost}/outbound-media-stream`;
 
-      console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl}`);
+      console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl} y voice_name: ${voice_name}`);
 
       // Generar TwiML
       const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
@@ -84,6 +85,7 @@ export default async function outboundCallRoutes(fastify, options) {
     <Stream url="${wsUrl}">
       <Parameter name="user_name" value="${user_name}" />
       <Parameter name="voice_id" value="${voice_id}" />
+      <Parameter name="voice_name" value="${request.query.voice_name || ''}" />
     </Stream>
   </Connect>
 </Response>`;
