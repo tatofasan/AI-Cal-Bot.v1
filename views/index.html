@@ -143,7 +143,9 @@
       try {
         const userNameValue = document.getElementById('userName').value;
         const toNumberValue = document.getElementById('toNumber').value || null;
-        const voiceIdValue = document.getElementById('voiceSelected').value;
+        const voiceSelect = document.getElementById('voiceSelected');
+        const voiceIdValue = voiceSelect.value;
+        const voiceNameValue = voiceSelect.options[voiceSelect.selectedIndex].getAttribute('data-nombre');
 
         const response = await fetch('/outbound-call', {
           method: 'POST',
@@ -153,7 +155,8 @@
           body: JSON.stringify({
             user_name: userNameValue,
             to_number: toNumberValue,
-            voice_id: voiceIdValue
+            voice_id: voiceIdValue,
+            voice_name: voiceNameValue
           })
         });
 

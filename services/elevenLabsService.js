@@ -85,6 +85,7 @@ export const setupMediaStream = async (ws) => {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
               user_name: userName,
+              voice_name: customParameters?.voice_name || ""
             },
             conversation_config_override: {
               tts: {
