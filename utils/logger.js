@@ -14,7 +14,7 @@ export const logClients = new Set();
 const broadcastLog = (type, args) => {
   const timestamp = new Date().toISOString();
   const message = `[${type}] ${args.join(' ')}`;
-  
+
   logClients.forEach(client => {
     if (client.readyState === 1) { // WebSocket.OPEN
       client.send(message);

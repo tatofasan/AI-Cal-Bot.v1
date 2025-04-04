@@ -1,6 +1,6 @@
+// src/services/elevenLabsService.js
 import WebSocket from "ws";
 import fetch from "node-fetch";
-import { hangupCall } from "../services/twilioService.js";
 
 // Configuración de ElevenLabs
 const ELEVENLABS_API_KEY =
@@ -14,24 +14,24 @@ export const getSignedUrl = async () => {
   try {
     console.log(
       "[ElevenLabs] Obteniendo signed URL para el agente:",
-      ELEVENLABS_AGENT_ID
+      ELEVENLABS_AGENT_ID,
     );
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
       {
         method: "GET",
         headers: { "xi-api-key": ELEVENLABS_API_KEY },
-      }
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        `[ElevenLabs] Error HTTP: ${response.status} ${response.statusText}`
+        `[ElevenLabs] Error HTTP: ${response.status} ${response.statusText}`,
       );
-      console.error("[ElevenLabs] Respuesta de error:", errorText);
+      console.error(`[ElevenLabs] Respuesta de error:`, errorText);
       throw new Error(
-        `Fallo al obtener signed URL: ${response.statusText} - ${errorText}`
+        `Fallo al obtener signed URL: ${response.statusText} - ${errorText}`,
       );
     }
 
@@ -49,7 +49,7 @@ export const getSignedUrl = async () => {
  */
 export const setupMediaStream = async (ws) => {
   console.info(
-    "[Server] WebSocket connection established for outbound media stream"
+    "[Server] WebSocket connection established for outbound media stream",
   );
 
   // Variables para mantener el estado
@@ -58,7 +58,7 @@ export const setupMediaStream = async (ws) => {
   let elevenLabsWs = null;
   let customParameters = {};
 
-  // Manejador de errores en la conexión principal
+  // Manejador de errores
   ws.on("error", (error) => {
     console.error("[WebSocket Error]", error);
   });
@@ -75,23 +75,24 @@ export const setupMediaStream = async (ws) => {
         console.log("[ElevenLabs] WebSocket conectado a ElevenLabs");
 
         try {
+          // Extraer el nombre del usuario de los parámetros
+          const userName = customParameters?.user_name || "Usuario";
+
           console.log("[ElevenLabs] Enviando configuración inicial");
+
           // Configuración inicial
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
-              user_name: customParameters.nombre || "el titular de la linea",
+              user_name: userName,
             },
           };
+
           elevenLabsWs.send(JSON.stringify(initialConfig));
-          console.log(
-            "[ElevenLabs] Configuración inicial enviada:",
-            initialConfig
-          );
         } catch (error) {
           console.error(
             "[ElevenLabs] Error enviando configuración inicial:",
-            error
+            error,
           );
         }
       });
@@ -109,7 +110,6 @@ export const setupMediaStream = async (ws) => {
               if (streamSid) {
                 if (message.audio?.chunk) {
                   console.log("[ElevenLabs] Audio chunk recibido");
-                  // Enviar audio a Twilio
                   const audioData = {
                     event: "media",
                     streamSid,
@@ -118,22 +118,9 @@ export const setupMediaStream = async (ws) => {
                     },
                   };
                   ws.send(JSON.stringify(audioData));
-                  
-                  // Enviar audio a la interfaz
-                  const interfaceAudioData = {
-                    type: 'audio',
-                    source: 'elevenlabs',
-                    audio: message.audio.chunk
-                  };
-                  // Enviar a todos los clientes de logs
-                  for (const client of logClients) {
-                    if (client.readyState === WebSocket.OPEN) {
-                      client.send(JSON.stringify(interfaceAudioData));
-                    }
-                  }
                 } else if (message.audio_event?.audio_base_64) {
                   console.log(
-                    "[ElevenLabs] Audio chunk (audio_event) recibido"
+                    "[ElevenLabs] Audio chunk (audio_event) recibido",
                   );
                   const audioData = {
                     event: "media",
@@ -146,7 +133,7 @@ export const setupMediaStream = async (ws) => {
                 }
               } else {
                 console.log(
-                  "[ElevenLabs] Recibido audio pero aún no hay streamSid"
+                  "[ElevenLabs] Recibido audio pero aún no hay streamSid",
                 );
               }
               break;
@@ -158,7 +145,7 @@ export const setupMediaStream = async (ws) => {
                   JSON.stringify({
                     event: "clear",
                     streamSid,
-                  })
+                  }),
                 );
               }
               break;
@@ -169,66 +156,26 @@ export const setupMediaStream = async (ws) => {
                   JSON.stringify({
                     type: "pong",
                     event_id: message.ping_event.event_id,
-                  })
+                  }),
                 );
               }
               break;
 
             case "agent_response":
               console.log(
-                `[Twilio] Respuesta del agente: ${message.agent_response_event?.agent_response}`
+                `[Twilio] Respuesta del agente: ${message.agent_response_event?.agent_response}`,
               );
-              console.log(
-                "[ElevenLabs] agent_response_event payload:",
-                message.agent_response_event
-              );
-              // Se verifica si el agente indica terminar la llamada mediante el flag terminate_call
-              if (message.agent_response_event?.terminate_call) {
-                console.log("[ElevenLabs] Bot solicitó terminar la llamada (flag terminate_call=true)");
-                if (callSid) {
-                  console.log(
-                    "[ElevenLabs] callSid definido, invocando hangupCall para callSid:",
-                    callSid
-                  );
-                  hangupCall(callSid)
-                    .then(() => {
-                      console.log("[ElevenLabs] hangupCall completado exitosamente.");
-                      ws.send(JSON.stringify({
-                        event: "stop",
-                        streamSid,
-                      }));
-                      resetState();
-                    })
-                    .catch((error) => {
-                      console.error("[ElevenLabs] Error al invocar hangupCall:", error);
-                      ws.send(JSON.stringify({
-                        event: "stop",
-                        streamSid,
-                      }));
-                      resetState();
-                    });
-                } else {
-                  console.warn("[ElevenLabs] callSid no definido, enviando stop directamente.");
-                  ws.send(JSON.stringify({
-                    event: "stop",
-                    streamSid,
-                  }));
-                  resetState();
-                }
-              } else {
-                console.log("[ElevenLabs] No se recibió el flag terminate_call; la llamada continuará.");
-              }
               break;
 
             case "user_transcript":
               console.log(
-                `[Twilio] Transcripción del usuario: ${message.user_transcription_event?.user_transcript}`
+                `[Twilio] Transcripción del usuario: ${message.user_transcription_event?.user_transcript}`,
               );
               break;
 
             default:
               console.log(
-                `[ElevenLabs] Tipo de mensaje no manejado: ${message.type}`
+                `[ElevenLabs] Tipo de mensaje no manejado: ${message.type}`,
               );
           }
         } catch (error) {
@@ -240,31 +187,33 @@ export const setupMediaStream = async (ws) => {
         console.error("[ElevenLabs] Error en WebSocket:", error);
       });
 
-      // Aquí se detecta el cierre del WebSocket de ElevenLabs como pedido de corte de llamada
-      elevenLabsWs.on("close", (code, reason) => {
+      elevenLabsWs.on("close", async (code, reason) => {
         console.log(
-          `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`
+          `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`,
         );
-        // Si se cierra la conexión y tenemos un callSid, interpretamos que el bot solicitó cortar la llamada
+
         if (callSid) {
-          console.log("[ElevenLabs] Cierre de WS detectado como pedido de corte de llamada. Invocando hangupCall para callSid:", callSid);
-          hangupCall(callSid)
-            .then(() => {
-              console.log("[ElevenLabs] hangupCall completado exitosamente tras cierre de WS.");
-              ws.send(JSON.stringify({
-                event: "stop",
-                streamSid,
-              }));
-              resetState();
-            })
-            .catch((error) => {
-              console.error("[ElevenLabs] Error al invocar hangupCall tras cierre de WS:", error);
-              ws.send(JSON.stringify({
-                event: "stop",
-                streamSid,
-              }));
-              resetState();
-            });
+          try {
+            const { twilioClient } = await import("./twilioService.js");
+            // Verificar estado actual de la llamada
+            const call = await twilioClient.calls(callSid).fetch();
+
+            if (call.status !== "completed" && call.status !== "canceled") {
+              await twilioClient.calls(callSid).update({ status: "canceled" });
+              console.log(
+                `[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`,
+              );
+            } else {
+              console.log(
+                `[ElevenLabs] Llamada ${callSid} ya estaba finalizada (estado: ${call.status})`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              "[ElevenLabs] Error al verificar/finalizar la llamada:",
+              error,
+            );
+          }
         }
       });
     } catch (error) {
@@ -289,10 +238,11 @@ export const setupMediaStream = async (ws) => {
           // Extraer y guardar los parámetros personalizados
           if (msg.start.customParameters) {
             customParameters = msg.start.customParameters;
-            console.log("[Twilio] Parámetros personalizados recibidos:", customParameters);
+            console.log("[Twilio] Parámetros personalizados recibidos");
           }
 
           console.log(`[Twilio] Stream iniciado - StreamSid: ${streamSid}`);
+
           // Solo iniciar ElevenLabs después de recibir los parámetros
           setupElevenLabs();
           break;
@@ -303,27 +253,24 @@ export const setupMediaStream = async (ws) => {
               const audioMessage = {
                 user_audio_chunk: Buffer.from(
                   msg.media.payload,
-                  "base64"
+                  "base64",
                 ).toString("base64"),
               };
               elevenLabsWs.send(JSON.stringify(audioMessage));
             } catch (error) {
-              console.error("[Twilio] Error enviando audio a ElevenLabs:", error);
+              console.error(
+                "[Twilio] Error enviando audio a ElevenLabs:",
+                error,
+              );
             }
           }
           break;
 
         case "stop":
-          console.log(`[Twilio] Stream ${streamSid} finalizado (evento "stop")`);
-          // Notificar a ElevenLabs para corte de llamada por "stop"
+          console.log(`[Twilio] Stream ${streamSid} finalizado`);
           if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-            console.log("[ElevenLabs] Enviando notificación de corte (stream_stopped) a ElevenLabs");
-            elevenLabsWs.send(JSON.stringify({
-              type: "call_terminated",
-              reason: "stream_stopped"
-            }));
+            elevenLabsWs.close();
           }
-          resetState();
           break;
 
         default:
@@ -335,48 +282,11 @@ export const setupMediaStream = async (ws) => {
     }
   });
 
-  // Función para reiniciar el estado
-  const resetState = () => {
-    console.log("[ElevenLabs] Reiniciando estado de la llamada.");
-    streamSid = null;
-    callSid = null;
-    customParameters = {};
+  // Manejar cierre de conexión
+  ws.on("close", () => {
+    console.log("[Twilio] Cliente desconectado");
     if (elevenLabsWs?.readyState === WebSocket.OPEN) {
       elevenLabsWs.close();
-    }
-    elevenLabsWs = null;
-  };
-
-  // Manejar cierre de conexión (cuando el cliente corta la llamada)
-  ws.on("close", () => {
-    console.log("[Twilio] Cliente desconectado (evento 'close' en WebSocket).");
-    if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-      console.log("[ElevenLabs] Notificando a ElevenLabs el corte de llamada por desconexión del cliente.");
-      elevenLabsWs.send(JSON.stringify({
-        type: "call_terminated",
-        reason: "client_disconnected"
-      }));
-    }
-    resetState();
-  });
-
-  // Manejar evento de stop (corte de llamada iniciado por Twilio)
-  ws.on("message", (message) => {
-    try {
-      const msg = JSON.parse(message);
-      if (msg.event === "stop") {
-        console.log(`[Twilio] Evento "stop" recibido para stream ${streamSid}`);
-        if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-          console.log("[ElevenLabs] Notificando a ElevenLabs el corte de llamada (stream_stopped) desde evento 'stop'.");
-          elevenLabsWs.send(JSON.stringify({
-            type: "call_terminated",
-            reason: "stream_stopped"
-          }));
-        }
-        resetState();
-      }
-    } catch (error) {
-      console.error("[Twilio] Error procesando mensaje de cierre:", error);
     }
   });
 };

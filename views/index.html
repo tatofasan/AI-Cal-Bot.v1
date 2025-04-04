@@ -1,231 +1,200 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Prueba de Llamadas ElevenLabs</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 20px;
-      }
-      h1 {
-        color: #333;
-      }
-      label {
-        display: block;
-        margin-top: 10px;
-      }
-      textarea,
-      input {
-        width: 100%;
-        padding: 8px;
-        margin: 5px 0 15px;
-        box-sizing: border-box;
-      }
-      button {
-        background: #4caf50;
-        color: white;
-        padding: 10px 15px;
-        border: none;
-        cursor: pointer;
-      }
-      pre {
-        background: #f4f4f4;
-        padding: 10px;
-        border-radius: 5px;
-        overflow-x: auto;
-      }
-      #response {
-        margin-top: 20px;
-        background: #f8f8f8;
-        padding: 10px;
-        border-radius: 5px;
-        min-height: 50px;
-      }
-      #logs {
-        margin-top: 30px;
-        background: #000;
-        color: #00ff00;
-        padding: 10px;
-        border-radius: 5px;
-        height: 300px;
-        display: block;
-        overflow-y: auto;
-        font-family: monospace;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        font-size: 12px;
-        line-height: 1.4;
-      }
-      /* Estilos para el chat box estilo WhatsApp */
-      .chat-container {
-        border: 1px solid #ddd;
-        padding: 10px;
-        margin-top: 20px;
-        max-height: 300px;
-        overflow-y: auto;
-        background: #f0f0f0;
-      }
-      .chat-message {
-        padding: 10px;
-        margin: 10px;
-        border-radius: 15px;
-        max-width: 70%;
-        clear: both;
-      }
-      .chat-message.server {
-        background-color: #e5e5ea;
-        float: left;
-      }
-      .chat-message.client {
-        background-color: #dcf8c6;
-        float: right;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Prueba de Llamadas - ElevenLabs</h1>
-    <!-- Se inyecta la URL pública en el span con id "publicUrl" -->
-    <p>URL pública: <strong id="publicUrl">{{publicUrl}}</strong></p>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba de Llamadas ElevenLabs</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    h1 { color: #333; }
+    label { display: block; margin-top: 10px; }
+    textarea, input { 
+      width: 100%; 
+      padding: 8px; 
+      margin: 5px 0 15px; 
+      box-sizing: border-box; 
+    }
+    button { 
+      background: #4CAF50; 
+      color: white; 
+      padding: 10px 15px; 
+      border: none; 
+      cursor: pointer; 
+    }
+    pre { 
+      background: #f4f4f4; 
+      padding: 10px; 
+      border-radius: 5px; 
+      overflow-x: auto; 
+    }
+    #response { 
+      margin-top: 20px; 
+      background: #f8f8f8; 
+      padding: 10px; 
+      border-radius: 5px; 
+      min-height: 50px; 
+    }
+    #logs {
+      margin-top: 30px;
+      background: #000;
+      color: #00ff00;
+      padding: 10px;
+      border-radius: 5px;
+      height: 300px;
+      display: block;
+      overflow-y: auto;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    /* Estilos para el chat box estilo WhatsApp */
+    .chat-container {
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: #f0f0f0;
+    }
+    .chat-message {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 15px;
+      max-width: 70%;
+      clear: both;
+    }
+    .chat-message.server {
+      background-color: #e5e5ea;
+      float: left;
+    }
+    .chat-message.client {
+      background-color: #DCF8C6;
+      float: right;
+    }
+  </style>
+</head>
+<body>
+  <h1>Prueba de Llamadas - ElevenLabs</h1>
+  <!-- Se inyecta la URL pública en el span con id "publicUrl" -->
+  <p>URL pública: <strong id="publicUrl">{{publicUrl}}</strong></p>
 
-    <form id="callForm">
-      <label for="userName">Nombre de la persona a llamar:</label>
-      <input type="text" id="userName" placeholder="Ingrese el nombre" />
+  <form id="callForm">
+    <label for="userName">Nombre de la persona a llamar:</label>
+    <input type="text" id="userName" placeholder="Ingrese el nombre">
 
-      <label for="toNumber"
-        >Número de teléfono (opcional, se usará el predeterminado si está
-        vacío):</label
-      >
-      <input type="text" id="toNumber" placeholder="+541161728140" />
+    <label for="toNumber">Número de teléfono (opcional, se usará el predeterminado si está vacío):</label>
+    <input type="text" id="toNumber" placeholder="+541161728140">
 
-      <button type="submit">Iniciar Llamada</button>
-    </form>
+    <button type="submit">Iniciar Llamada</button>
+  </form>
 
-    <div id="response"></div>
-    <h2>Conversacion Transcripta</h2>
-    <!-- Chat box estilo WhatsApp -->
-    <div class="chat-container" id="chatBox">
-      <!-- Los mensajes se inyectarán aquí desde el backend -->
-    </div>
+  <div id="response"></div>
+  <h2>Conversacion Transcripta</h2>
+  <!-- Chat box estilo WhatsApp -->
+  <div class="chat-container" id="chatBox">
+    <!-- Los mensajes se inyectarán aquí desde el backend -->
+  </div>
 
-    <h2>Logs del servidor</h2>
-    <div id="logs"></div>
+  <h2>Logs del servidor</h2>
+  <div id="logs"></div>
 
-    <script>
-      // WebSocket para recibir logs
-      const logsElement = document.getElementById("logs");
-      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const logsWs = new WebSocket(
-        wsProtocol + "//" + window.location.host + "/logs-websocket",
-      );
+  <script>
+    // WebSocket para recibir logs
+    const logsElement = document.getElementById('logs');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const logsWs = new WebSocket(wsProtocol + '//' + window.location.host + '/logs-websocket');
 
-      logsElement.innerHTML = "[INFO] Esperando conexión a logs...\n";
+    logsElement.innerHTML = '[INFO] Esperando conexión a logs...\n';
 
-      logsWs.onopen = function () {
-        logsElement.innerHTML += "[INFO] Conexión a logs establecida\n";
-        const heartbeatInterval = setInterval(() => {
-          if (logsWs.readyState === WebSocket.OPEN) {
-            logsWs.send("heartbeat");
-          } else {
-            clearInterval(heartbeatInterval);
-          }
-        }, 30000);
-
-        logsWs.addEventListener("close", () => {
+    logsWs.onopen = function() {
+      logsElement.innerHTML += '[INFO] Conexión a logs establecida\n';
+      const heartbeatInterval = setInterval(() => {
+        if (logsWs.readyState === WebSocket.OPEN) {
+          logsWs.send('heartbeat');
+        } else {
           clearInterval(heartbeatInterval);
-        });
-      };
-
-      logsWs.onmessage = function (event) {
-        const log = event.data;
-        console.log("Log recibido:", log);
-
-        // Mostrar el log en el div de logs
-        logsElement.innerHTML += log + "\n";
-        setTimeout(() => {
-          logsElement.scrollTop = logsElement.scrollHeight;
-        }, 10);
-
-        // Referencia al contenedor de chat
-        const chatBox = document.getElementById("chatBox");
-
-        // Procesar mensaje de respuesta del agente
-        if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
-          const messageText = log
-            .replace("[LOG] [Twilio] Respuesta del agente:", "")
-            .trim();
-          const messageDiv = document.createElement("div");
-          messageDiv.className = "chat-message server"; // Mensaje del servidor (alineado a la izquierda)
-          messageDiv.textContent = messageText;
-          chatBox.appendChild(messageDiv);
-          chatBox.scrollTop = chatBox.scrollHeight;
         }
-        // Procesar mensaje de transcripción del usuario
-        else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
-          const messageText = log
-            .replace("[LOG] [Twilio] Transcripción del usuario:", "")
-            .trim();
-          const messageDiv = document.createElement("div");
-          messageDiv.className = "chat-message client"; // Mensaje del cliente (alineado a la derecha)
-          messageDiv.textContent = messageText;
-          chatBox.appendChild(messageDiv);
-          chatBox.scrollTop = chatBox.scrollHeight;
-        }
-      };
+      }, 30000);
 
-      logsWs.onclose = () => {
-        logsElement.innerHTML += "[Conexión a logs cerrada]\n";
-      };
+      logsWs.addEventListener('close', () => {
+        clearInterval(heartbeatInterval);
+      });
+    };
 
-      function clearLogsAndChat() {
-        document.getElementById("logs").innerHTML = "";
-        document.getElementById("chatBox").innerHTML = "";
+    logsWs.onmessage = function(event) {
+      const log = event.data;
+      console.log("Log recibido:", log);
+      
+      // Mostrar el log en el div de logs
+      logsElement.innerHTML += log + '\n';
+      setTimeout(() => {
+        logsElement.scrollTop = logsElement.scrollHeight;
+      }, 10);
+      
+      // Referencia al contenedor de chat
+      const chatBox = document.getElementById('chatBox');
+      
+      // Procesar mensaje de respuesta del agente
+      if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
+        const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "chat-message server"; // Mensaje del servidor (alineado a la izquierda)
+        messageDiv.textContent = messageText;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
+      // Procesar mensaje de transcripción del usuario
+      else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
+        const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "chat-message client"; // Mensaje del cliente (alineado a la derecha)
+        messageDiv.textContent = messageText;
+        chatBox.appendChild(messageDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    };
 
-      document
-        .getElementById("callForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const responseDiv = document.getElementById("response");
-          responseDiv.innerHTML = "Iniciando llamada...";
+    logsWs.onclose = () => {
+      logsElement.innerHTML += '[Conexión a logs cerrada]\n';
+    };
 
-          try {
-            const userNameValue = document.getElementById("userName").value;
-            const toNumberValue =
-              document.getElementById("toNumber").value || null;
+    document.getElementById('callForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const responseDiv = document.getElementById('response');
+      responseDiv.innerHTML = 'Iniciando llamada...';
 
-            clearLogsAndChat(); // Added this line
+      try {
+        const userNameValue = document.getElementById('userName').value;
+        const toNumberValue = document.getElementById('toNumber').value || null;
 
-            const response = await fetch("/outbound-call", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                nombre: userNameValue,
-                to_number: toNumberValue,
-              }),
-            });
-
-            if (!response.ok) {
-              throw new Error(
-                "Error HTTP: " + response.status + " " + response.statusText,
-              );
-            }
-
-            const data = await response.json();
-            responseDiv.innerHTML =
-              "<h3>Respuesta</h3><pre>" +
-              JSON.stringify(data, null, 2) +
-              "</pre>";
-          } catch (error) {
-            responseDiv.innerHTML =
-              "<h3>Error</h3><pre>" + error.toString() + "</pre>";
-          }
+        const response = await fetch('/outbound-call', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_name: userNameValue,
+            to_number: toNumberValue
+          })
         });
-    </script>
-  </body>
+
+        if (!response.ok) {
+          throw new Error("Error HTTP: " + response.status + " " + response.statusText);
+        }
+
+        const data = await response.json();
+        responseDiv.innerHTML = '<h3>Respuesta</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+      } catch (error) {
+        responseDiv.innerHTML = '<h3>Error</h3><pre>' + error.toString() + '</pre>';
+      }
+    });
+  </script>
+</body>
 </html>

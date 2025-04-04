@@ -12,7 +12,6 @@ export default function websocketsRoutes(fastify, options) {
 
     ws.send("[INFO] Conexión establecida con logs");
 
-
     if (fastify.publicUrl) {
       ws.send(`[INFO] URL pública: ${fastify.publicUrl}`);
     }
@@ -39,7 +38,6 @@ export default function websocketsRoutes(fastify, options) {
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
     console.info("[Server] Conexión WebSocket para stream de medios iniciada");
-
     setupMediaStream(ws);
   });
 }

@@ -1,11 +1,13 @@
+// src/services/twilioService.js
 import Twilio from "twilio";
-import { getPublicUrl } from "../services/urlService.js";
+
 // Constantes
 const TWILIO_ACCOUNT_SID = "ACb593668600bd12b6cc9289e1b8e4f74d";
 const TWILIO_AUTH_TOKEN = "c32049560b9edbc746c89823d42b4ac8";
 const TWILIO_PHONE_NUMBER = "+17346276080";
 const TWILIO_BYOC_TRUNK_SID = "BY95c610d7381f4a0c2e961ab2412a4c3c";
 const TO_PHONE_NUMBER = "+541161728140";
+import { REPLIT_URL } from './urlService.js';
 
 // Crear cliente de Twilio
 let twilioClient;
@@ -17,25 +19,19 @@ try {
   throw error;
 }
 
-export const twilioCall = async ({ to_number, nombre }) => {
+export const twilioCall = async ({ user_name, to_number }) => {
   console.log("[Twilio] Iniciando llamada con parámetros:", {
+    userName: user_name,
     toNumber: to_number || TO_PHONE_NUMBER,
-    nombre,
   });
 
   const destinationNumber = to_number || TO_PHONE_NUMBER;
 
   // Usar la URL forzada para asegurar que Twilio se conecte correctamente
-  const publicUrl = getPublicUrl();
+  const publicUrl = REPLIT_URL;
 
   // Construir la URL para TwiML con parámetros codificados
-  // Ensure the URL has https:// prefix
-  const baseUrl = publicUrl.startsWith("http")
-    ? publicUrl
-    : `https://${publicUrl}`;
-  const twimlUrl = `${baseUrl}/outbound-call-twiml?nombre=${encodeURIComponent(
-    nombre || "",
-  )}`;
+  const twimlUrl = `${publicUrl}/outbound-call-twiml?user_name=${encodeURIComponent(user_name || "")}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
@@ -47,6 +43,7 @@ export const twilioCall = async ({ to_number, nombre }) => {
       to: destinationNumber,
       url: twimlUrl,
       byoc: TWILIO_BYOC_TRUNK_SID,
+      machineDetection: true,
     };
 
     console.log("[Twilio] Opciones de llamada:", callOptions);
@@ -70,24 +67,4 @@ export const twilioCall = async ({ to_number, nombre }) => {
     throw error;
   }
 };
-
-export const hangupCall = async (callSid) => {
-  console.log("[Twilio] hangupCall invocado para callSid:", callSid);
-  try {
-    const call = await twilioClient
-      .calls(callSid)
-      .update({ status: "completed" });
-    console.log(
-      "[Twilio] Llamada finalizada exitosamente para callSid:",
-      callSid,
-    );
-    return call;
-  } catch (error) {
-    console.error(
-      "[Twilio] Error finalizando llamada para callSid:",
-      callSid,
-      error,
-    );
-    throw error;
-  }
-};
+export { twilioClient };

@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="es">
   <head>
@@ -48,10 +47,15 @@
         font-weight: 600;
         transition: all 0.3s;
       }
-      .btn-primary:hover {
+      .btn-primary:hover:not(:disabled) {
         background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+       .btn-danger {
+        border-radius: 8px;
+        padding: 10px 25px;
+        font-weight: 600;
       }
       #logs {
         background: #1a1a1a;
@@ -80,6 +84,10 @@
         border-radius: 18px;
         max-width: 75%;
         position: relative;
+        display: flex;
+        flex-direction: column;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
       }
       .chat-message.server {
         background-color: #e9f5ff;
@@ -95,12 +103,14 @@
         margin-left: auto;
         border-bottom-right-radius: 5px;
       }
-      .section-title {
+       .section-title {
         color: #555;
         margin: 30px 0 15px;
         font-weight: 600;
         position: relative;
         padding-left: 15px;
+        display: flex;
+        align-items: center;
       }
       .section-title::before {
         content: '';
@@ -113,340 +123,376 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 5px;
       }
-      .status-indicator {
+       .status-badge {
+        font-size: 0.9rem;
+        padding: 0.4em 0.8em;
+        border-radius: 15px;
+        margin-left: 15px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .status-idle { background-color: #6c757d; color: white; }
+      .status-initiating { background-color: #ffc107; color: black; }
+      .status-in_progress { background-color: #0d6efd; color: white; }
+      .status-terminating { background-color: #fd7e14; color: white; }
+      .status-completed { background-color: #198754; color: white; }
+      .status-failed { background-color: #dc3545; color: white; }
+      .status-interrupted { background-color: #ffc107; color: black; } /* Keep visual style for interrupted */
+
+
+      .metrics-section {
+        background-color: #e9ecef;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+      }
+       .metrics-section h5 {
+        margin-bottom: 15px;
+        color: #495057;
+      }
+       .metrics-section p {
+        margin-bottom: 5px;
+        font-size: 0.95rem;
+      }
+       .metrics-section strong {
+        color: #343a40;
+      }
+      .ws-status-indicator {
         display: inline-block;
         width: 12px;
         height: 12px;
         border-radius: 50%;
         margin-right: 8px;
       }
-      .status-indicator.online {
+      .ws-status-indicator.online {
         background-color: #28a745;
         box-shadow: 0 0 5px #28a745;
       }
-      .status-indicator.offline {
+      .ws-status-indicator.offline {
         background-color: #dc3545;
       }
-      .status-text {
+      .ws-status-text {
         font-size: 0.9rem;
         color: #666;
+      }
+      .call-controls {
+          margin-top: 15px;
+          gap: 0.5rem;
       }
     </style>
   </head>
   <body>
     <div id="root"></div>
 
-    <!-- React, React DOM & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+
     <script type="text/babel">
-      const { useState, useEffect, useRef } = React;
-      
+      const { useState, useEffect, useRef, useCallback } = React;
+
+      // Mapping states to user-friendly text and CSS classes
+      const callStatusInfo = {
+        idle: { text: 'Inactivo', cssClass: 'status-idle' },
+        initiating: { text: 'Iniciando...', cssClass: 'status-initiating' },
+        in_progress: { text: 'En Progreso', cssClass: 'status-in_progress' },
+        terminating: { text: 'Terminando...', cssClass: 'status-terminating' },
+        completed: { text: 'Completada', cssClass: 'status-completed' },
+        failed: { text: 'Fallida', cssClass: 'status-failed' },
+        interrupted: { text: 'Interrumpida', cssClass: 'status-failed' } // Added interrupted state mapping
+      };
+
       function App() {
         const [userName, setUserName] = useState('');
         const [toNumber, setToNumber] = useState('');
-        const [response, setResponse] = useState(null);
+        const [callResponse, setCallResponse] = useState(null);
         const [logs, setLogs] = useState([]);
         const [chatMessages, setChatMessages] = useState([]);
-        const [isConnected, setIsConnected] = useState(false);
+        const [isWsConnected, setIsWsConnected] = useState(false);
         const [isLoading, setIsLoading] = useState(false);
-        const audioContext = useRef(null);
-        
-        // Función para reproducir audio desde base64
-        const playAudio = async (base64Audio) => {
-          if (!audioContext.current) {
-            audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
-          }
-          
-          const audioData = atob(base64Audio);
-          const arrayBuffer = new ArrayBuffer(audioData.length);
-          const view = new Uint8Array(arrayBuffer);
-          for (let i = 0; i < audioData.length; i++) {
-            view[i] = audioData.charCodeAt(i);
-          }
-          
-          try {
-            const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
-            const source = audioContext.current.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.current.destination);
-            source.start(0);
-          } catch (error) {
-            console.error('Error reproduciendo audio:', error);
-          }
-        };
-        
+        const [isHangupLoading, setIsHangupLoading] = useState(false);
+        const [currentCallSid, setCurrentCallSid] = useState(null);
+        const [callState, setCallState] = useState('idle');
+        const [lastMetrics, setLastMetrics] = useState(null);
+        // Removed isMonitoringActive state
+
+        // Removed audio related refs: audioContext, audioQueue, isPlaying, sourceNodeRef
+
         const logsRef = useRef(null);
         const chatRef = useRef(null);
         const wsRef = useRef(null);
-        
+
+        const addLog = useCallback((message) => {
+          const timestamp = new Date().toLocaleTimeString();
+          // Limit logs shown in UI for performance
+          setLogs(prevLogs => [`[${timestamp}] ${message}`, ...prevLogs].slice(0, 200));
+        }, []);
+
+        // Removed: getAudioContext, playAudio, enqueueAudio, stopPlayback
+
+        const connectWebSocket = useCallback(() => {
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${protocol}//${window.location.host}/logs-websocket`;
+
+          if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+            return;
+          }
+
+          wsRef.current = new WebSocket(wsUrl);
+
+          wsRef.current.onopen = () => {
+            setIsWsConnected(true);
+            addLog("[INFO] Conexión WebSocket establecida con el servidor.");
+          };
+
+          wsRef.current.onmessage = (event) => {
+            const message = event.data;
+            let parsedMessage = null;
+
+            try {
+              parsedMessage = JSON.parse(message);
+            } catch (e) {
+              addLog(message);
+              // Simpler state update based on logs
+              if (message.includes("[Twilio] Stream iniciado")) {
+                  setCallState(prevState => prevState === 'initiating' ? 'in_progress' : prevState);
+              }
+            }
+
+            if (parsedMessage) {
+              // Removed audio message handling
+              if (parsedMessage.type === 'metrics' && parsedMessage.data) {
+                addLog(`[METRICS] Métricas recibidas: ${JSON.stringify(parsedMessage.data)}`);
+                setLastMetrics(parsedMessage.data);
+                setCallState('completed');
+                setCurrentCallSid(null);
+              } else if (parsedMessage.type === 'call_status' && parsedMessage.status) {
+                 addLog(`[STATUS] Actualización de estado: ${parsedMessage.status}`);
+                 const newStatus = parsedMessage.status;
+                 setCallState(newStatus);
+                 // Clear SID only on final states signaled by backend
+                 if (newStatus === 'completed' || newStatus === 'failed') {
+                    setCurrentCallSid(null);
+                 }
+              } else if (parsedMessage.type === 'transcript') {
+                  if(parsedMessage.source === 'user') {
+                      addChatMessage(parsedMessage.text, 'client');
+                      addLog(`[TRANSCRIPT] Usuario: ${parsedMessage.text}`);
+                  } else if (parsedMessage.source === 'agent') {
+                      addChatMessage(parsedMessage.text, 'server');
+                      addLog(`[TRANSCRIPT] Agente: ${parsedMessage.text}`);
+                  }
+              }
+               else if (parsedMessage.type !== 'audio') { // Ignore audio messages silently now
+                 addLog(`[JSON] Mensaje estructurado recibido: ${message}`);
+              }
+            } else {
+               // Fallback for legacy transcript logs
+               if (message.includes("[Twilio] Respuesta del agente:")) {
+                   const agentMessage = message.split("[Twilio] Respuesta del agente:")[1].trim();
+                   addChatMessage(agentMessage, 'server');
+               } else if (message.includes("[Twilio] Transcripción del usuario:")) {
+                   const userMessage = message.split("[Twilio] Transcripción del usuario:")[1].trim();
+                   addChatMessage(userMessage, 'client');
+               }
+            }
+          };
+
+          // Simplified onclose handler
+          wsRef.current.onclose = () => {
+            setIsWsConnected(false);
+            addLog("[INFO] Conexión WebSocket cerrada.");
+            // Update state cautiously only if call seemed active
+            setCallState(prevState => {
+                if (prevState === 'in_progress' || prevState === 'terminating') {
+                    addLog("[WARN] WS cerrado inesperadamente. Marcando como Interrumpida.");
+                    return 'interrupted'; // Still allow hangup attempts if needed
+                }
+                return prevState; // Keep completed/failed/idle states
+            });
+            // Don't clear currentCallSid - allow hangup attempt if interrupted
+            // Removed stopPlayback call
+            setTimeout(connectWebSocket, 5000); // Attempt reconnect
+          };
+
+          wsRef.current.onerror = (error) => {
+            setIsWsConnected(false);
+            addLog("[ERROR] Error en WebSocket. Intentando reconectar...");
+            console.error("WebSocket error:", error);
+          };
+
+        // Removed dependencies related to audio playback
+        }, [addLog]);
+
+
         useEffect(() => {
-          // Conectar al WebSocket para logs
           connectWebSocket();
-          
-          // Limpieza al desmontar
+          // Removed audio context cleanup
           return () => {
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
               wsRef.current.close();
             }
           };
-        }, []);
-        
+        }, [connectWebSocket]);
+
+
         useEffect(() => {
-          // Auto-scroll de logs
           if (logsRef.current) {
-            logsRef.current.scrollTop = logsRef.current.scrollHeight;
+             logsRef.current.scrollTop = 0; // Scroll to top for latest logs
           }
         }, [logs]);
-        
+
+
         useEffect(() => {
-          // Auto-scroll de chat
           if (chatRef.current) {
             chatRef.current.scrollTop = chatRef.current.scrollHeight;
           }
         }, [chatMessages]);
-        
-        const connectWebSocket = () => {
-          // Construir la URL WebSocket
-          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          const wsUrl = `${protocol}//${window.location.host}/logs-websocket`;
-          
-          wsRef.current = new WebSocket(wsUrl);
-          
-          wsRef.current.onopen = () => {
-            setIsConnected(true);
-            addLog("[INFO] Conexión WebSocket establecida");
-          };
-          
-          wsRef.current.onmessage = (event) => {
-            const message = event.data;
-            addLog(message);
-            
-            try {
-              // Intentar parsear el mensaje como JSON
-              const jsonMessage = JSON.parse(message);
-              
-              // Si es un mensaje de audio
-              if (jsonMessage.type === 'audio') {
-                if (jsonMessage.source === 'elevenlabs' && jsonMessage.audio) {
-                  // Reproducir audio del bot
-                  playAudio(jsonMessage.audio);
-                } else if (jsonMessage.source === 'client' && jsonMessage.audio) {
-                  // Reproducir audio del cliente
-                  playAudio(jsonMessage.audio);
-                }
-              }
-            } catch (e) {
-              // Si no es JSON, procesar como mensaje de texto normal
-              if (message.includes("[Twilio] Respuesta del agente:")) {
-                const agentMessage = message.split("[Twilio] Respuesta del agente:")[1].trim();
-                addChatMessage(agentMessage, 'server');
-              } else if (message.includes("[Twilio] Transcripción del usuario:")) {
-                const userMessage = message.split("[Twilio] Transcripción del usuario:")[1].trim();
-                addChatMessage(userMessage, 'client');
-              }
-            }
-          };
-          
-          wsRef.current.onclose = () => {
-            setIsConnected(false);
-            addLog("[INFO] Conexión WebSocket cerrada");
-            
-            // Reconectar después de 3 segundos
-            setTimeout(connectWebSocket, 3000);
-          };
-          
-          wsRef.current.onerror = (error) => {
-            setIsConnected(false);
-            addLog("[ERROR] Error en WebSocket");
-            console.error("WebSocket error:", error);
-          };
-          
-          // Enviar heartbeat cada 30 segundos
-          const heartbeatInterval = setInterval(() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              wsRef.current.send("heartbeat");
-            }
-          }, 30000);
-          
-          return () => clearInterval(heartbeatInterval);
-        };
-        
-        const addLog = (message) => {
-          setLogs(prevLogs => [...prevLogs, message]);
-        };
-        
+
         const addChatMessage = (content, type) => {
           setChatMessages(prev => [...prev, { content, type }]);
         };
-        
-        const handleSubmit = async (e) => {
+
+        const handleStartCall = async (e) => {
           e.preventDefault();
           setIsLoading(true);
-          
+          setCallResponse(null);
+          setLastMetrics(null);
+          setChatMessages([]);
+          setLogs([]);
+          setCallState('initiating');
+          setCurrentCallSid(null);
+          // Removed stopPlayback call
+
+          addLog(`[INFO] Iniciando llamada a ${toNumber || 'número predeterminado'} para ${userName}...`);
+
+          // Removed AudioContext init/resume logic
+
           try {
             const response = await fetch('/outbound-call', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                nombre: userName,
-                to_number: toNumber || undefined
-              })
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ nombre: userName, to_number: toNumber || undefined })
             });
-            
             const data = await response.json();
-            setResponse(data);
-            
-            if (data.success) {
-              addLog(`[INFO] Llamada iniciada con éxito: ${data.call_sid}`);
-            } else {
-              addLog(`[ERROR] Error al iniciar llamada: ${data.error}`);
-            }
+            setCallResponse(data);
+            if (response.ok && data.success && data.callSid) {
+              setCurrentCallSid(data.callSid);
+              addLog(`[INFO] Petición de llamada enviada. CallSid: ${data.callSid}`);
+            } else { throw new Error(data.error || `HTTP ${response.status}`); }
           } catch (error) {
-            console.error("Error:", error);
-            addLog(`[ERROR] Error al realizar la petición: ${error.message}`);
-          } finally {
-            setIsLoading(false);
-          }
+            console.error("Error starting call:", error);
+            addLog(`[ERROR] Falló el inicio de la llamada: ${error.message}`);
+            setCallResponse({ success: false, error: error.message });
+            setCallState('failed');
+            setCurrentCallSid(null);
+          } finally { setIsLoading(false); }
         };
-        
+
+         const handleHangupCall = async () => {
+            // Use the refined canHangup condition check
+            const canHangup = !!currentCallSid && !['idle', 'completed', 'failed'].includes(callState);
+
+            if (!canHangup) {
+                 addLog(`[WARN] No se puede colgar. Estado: ${callState}, CallSid: ${currentCallSid || 'N/A'}`);
+                 return;
+            }
+
+            setIsHangupLoading(true);
+            // Set state to terminating *unless* it's already a final state
+            setCallState(prevState => ['idle', 'completed', 'failed'].includes(prevState) ? prevState : 'terminating');
+            addLog(`[INFO] Solicitando colgar llamada manualmente: ${currentCallSid}`);
+
+            try {
+                const response = await fetch('/hangup-call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callSid: currentCallSid })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    addLog(`[INFO] Solicitud de colgar enviada exitosamente para ${currentCallSid}. Esperando confirmación final.`);
+                } else { throw new Error(data.error || `HTTP ${response.status}`); }
+            } catch (error) {
+                console.error("Error hanging up call:", error);
+                addLog(`[ERROR] Falló la solicitud de colgar: ${error.message}`);
+                // Revert state only if API failed and call wasn't already ended
+                 setCallState(prevState => {
+                     if (prevState === 'terminating') return 'in_progress'; // Or maybe 'interrupted'? Let's try in_progress
+                     return prevState;
+                 });
+            } finally { setIsHangupLoading(false); }
+         };
+
+         // Removed toggleMonitoring function
+
+         const currentStatusInfo = callStatusInfo[callState] || callStatusInfo.idle;
+         // Removed canMonitor variable
+         // Refined canHangup condition
+         const canHangup = !!currentCallSid && !['idle', 'completed', 'failed'].includes(callState);
+
         return (
           <div className="app-container">
             <div className="header text-center">
               <h1><i className="fas fa-phone-alt me-2"></i> ElevenLabs - Prueba de Llamadas</h1>
               <p className="mb-0">Sistema de pruebas de llamadas automatizadas con IA</p>
             </div>
-            
-            <div className="row">
-              <div className="col-md-12">
-                <div className="d-flex align-items-center mb-3">
-                  <div className={`status-indicator ${isConnected ? 'online' : 'offline'}`}></div>
-                  <span className="status-text">
-                    {isConnected ? 'Servidor conectado' : 'Servidor desconectado'}
-                  </span>
-                  <div className="ms-auto">
-                    <strong>URL pública:</strong> <span id="publicUrl">{{publicUrl}}</span>
+
+            <div className="d-flex align-items-center mb-3">
+              <div className={`ws-status-indicator ${isWsConnected ? 'online' : 'offline'}`}></div>
+              <span className="ws-status-text">{isWsConnected ? 'Conectado al servidor' : 'Desconectado del servidor'}</span>
+               <div className="ms-auto"><strong>URL pública:</strong> <span id="publicUrl">{{publicUrl}}</span></div>
+            </div>
+
+            <div className="card">
+              <div className="card-body">
+                 <div className="d-flex justify-content-between align-items-center mb-3">
+                     <h5 className="card-title mb-0"><i className="fas fa-headset me-2"></i> Nueva llamada</h5>
+                     <span className={`badge ${currentStatusInfo.cssClass} status-badge`}>{currentStatusInfo.text}</span>
+                 </div>
+
+                <form id="callForm" onSubmit={handleStartCall}>
+                  <div className="mb-3">
+                    <label htmlFor="userName" className="form-label"><i className="fas fa-user me-2"></i>Nombre de la persona a llamar:</label>
+                    <input type="text" className="form-control" id="userName" placeholder="Ingrese el nombre" value={userName} onChange={(e) => setUserName(e.target.value)} required disabled={isLoading || (callState !== 'idle' && callState !== 'completed' && callState !== 'failed' && callState !== 'interrupted')} />
                   </div>
-                </div>
+                  <div className="mb-4">
+                    <label htmlFor="toNumber" className="form-label"><i className="fas fa-phone me-2"></i>Número de teléfono (opcional):</label>
+                    <input type="text" className="form-control" id="toNumber" placeholder="+541161728140" value={toNumber} onChange={(e) => setToNumber(e.target.value)} disabled={isLoading || (callState !== 'idle' && callState !== 'completed' && callState !== 'failed' && callState !== 'interrupted')} />
+                    <div className="form-text">Se usará el número predeterminado si está vacío.</div>
+                  </div>
+
+                   {/* --- Removed Monitoring Button --- */}
+                   <div className="call-controls d-grid gap-2 d-sm-flex justify-content-sm-center">
+                     <button type="submit" className="btn btn-primary" disabled={isLoading || isHangupLoading || (callState !== 'idle' && callState !== 'completed' && callState !== 'failed' && callState !== 'interrupted')}>
+                       {isLoading ? (<><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Iniciando...</>) : (<><i className="fas fa-phone-alt me-2"></i> Iniciar Llamada</>)}
+                     </button>
+                     <button type="button" className="btn btn-danger" onClick={handleHangupCall} disabled={isHangupLoading || isLoading || !canHangup}>
+                       {isHangupLoading ? (<><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Colgando...</>) : (<><i className="fas fa-phone-slash me-2"></i> Colgar</>)}
+                     </button>
+                     {/* Monitoring button removed */}
+                   </div>
+                </form>
               </div>
             </div>
-            
-            <div className="row">
-              <div className="col-md-12">
-                <div className="card">
-                  <div className="card-body">
-                    <h5 className="card-title mb-3">
-                      <i className="fas fa-headset me-2"></i>
-                      Nueva llamada
-                    </h5>
-                    
-                    <form id="callForm" onSubmit={handleSubmit}>
-                      <div className="mb-3">
-                        <label htmlFor="userName" className="form-label">
-                          <i className="fas fa-user me-2"></i>
-                          Nombre de la persona a llamar:
-                        </label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          id="userName" 
-                          placeholder="Ingrese el nombre" 
-                          value={userName}
-                          onChange={(e) => setUserName(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="mb-4">
-                        <label htmlFor="toNumber" className="form-label">
-                          <i className="fas fa-phone me-2"></i>
-                          Número de teléfono (opcional):
-                        </label>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          id="toNumber" 
-                          placeholder="+541161728140" 
-                          value={toNumber}
-                          onChange={(e) => setToNumber(e.target.value)}
-                        />
-                        <div className="form-text">
-                          Se usará el número predeterminado si está vacío.
-                        </div>
-                      </div>
-                      <button 
-                        type="submit" 
-                        className="btn btn-primary w-100" 
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            Iniciando llamada...
-                          </>
-                        ) : (
-                          <>
-                            <i className="fas fa-phone-alt me-2"></i>
-                            Iniciar Llamada
-                          </>
-                        )}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-                
-                {response && (
-                  <div className={`alert ${response.success ? 'alert-success' : 'alert-danger'} mt-3`} role="alert">
-                    {response.success ? (
-                      <><i className="fas fa-check-circle me-2"></i> Llamada iniciada con éxito {response.call_sid ? `(SID: ${response.call_sid})` : ''}</>
-                    ) : (
-                      <><i className="fas fa-exclamation-triangle me-2"></i> Error: {response.error}</>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <h3 className="section-title">
-              <i className="fas fa-comments me-2"></i>
-              Conversación Transcripta
-            </h3>
+
+            {callResponse && (<div className={`alert ${callResponse.success ? 'alert-info' : 'alert-warning'} mt-3`} role="alert"><strong>Respuesta API:</strong> {callResponse.success ? `Éxito (SID: ${callResponse.callSid || 'N/A'})` : `Error: ${callResponse.error || 'Desconocido'}`}</div>)}
+
+            {lastMetrics && (callState === 'completed' || callState === 'failed' || callState === 'interrupted') && (<div className="metrics-section"><h5><i className="fas fa-chart-bar me-2"></i>Métricas de la Última Llamada</h5><p><strong>Duración:</strong> {lastMetrics.duration != null ? `${lastMetrics.duration.toFixed(2)} segundos` : 'N/A'}</p><p><strong>Finalizada por:</strong> {lastMetrics.initiator || 'Desconocido'}</p><p><strong>Turnos de conversación (Agente):</strong> {lastMetrics.agentTurns != null ? lastMetrics.agentTurns : 'N/A'}</p><p><strong>Turnos de conversación (Usuario):</strong> {lastMetrics.userTurns != null ? lastMetrics.userTurns : 'N/A'}</p></div>)}
+
+            <h3 className="section-title"><i className="fas fa-comments me-2"></i> Conversación Transcripta</h3>
             <div className="chat-container" ref={chatRef}>
-              {chatMessages.length === 0 ? (
-                <div className="text-center text-muted my-5">
-                  <i className="fas fa-comment-slash fa-3x mb-3"></i>
-                  <p>No hay mensajes en la conversación</p>
-                </div>
-              ) : (
-                chatMessages.map((msg, index) => (
-                  <div key={index} className={`chat-message ${msg.type}`}>
-                    {msg.content}
-                  </div>
-                ))
-              )}
+              {chatMessages.length === 0 ? (<div className="text-center text-muted p-5"><i className="fas fa-comment-slash fa-3x mb-3 d-block"></i> La conversación aparecerá aquí.</div>) : (<div style={{ display: 'flex', flexDirection: 'column' }}>{chatMessages.map((msg, index) => (<div key={index} className={`chat-message ${msg.type}`}>{msg.content}</div>))}</div>)}
             </div>
-            
-            <h3 className="section-title">
-              <i className="fas fa-terminal me-2"></i>
-              Logs del servidor
-            </h3>
+
+            <h3 className="section-title"><i className="fas fa-terminal me-2"></i> Logs del servidor</h3>
             <div id="logs" ref={logsRef}>
-              {logs.length === 0 ? (
-                <span className="text-muted">No hay logs disponibles</span>
-              ) : (
-                logs.map((log, index) => (
-                  <div key={index}>{log}</div>
-                ))
-              )}
+              {logs.length === 0 ? (<span className="text-muted">Esperando logs...</span>) : (logs.map((log, index) => (<div key={index}>{log}</div>)))}
             </div>
           </div>
         );
       }
-      
-      // Renderizar la aplicación
+
       ReactDOM.render(<App />, document.getElementById('root'));
     </script>
   </body>
