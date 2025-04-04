@@ -80,16 +80,39 @@ export const setupMediaStream = async (ws) => {
 
           console.log("[ElevenLabs] Enviando configuración inicial");
           console.log("[ElevenLabs] Voiceid",customParameters?.voice_id);
+          
+          // Lista de voces disponibles
+          const availableVoices = [
+            {id: "15bJsujCI3tcDWeoZsQP", name: "Ernesto Ferran"},
+            {id: "dXzxF8F6baTsuGSxeorB", name: "Valeria Rodriguez"},
+            {id: "ukupJ4zdf9bo1Py6MiO6", name: "Bruno Fernandez"},
+            {id: "YExhVa4bZONzeingloMX", name: "Juan Carlos Gutierrez"},
+            {id: "rEVYTKPqwSMhytFPayIb", name: "Sandra Valenzuela"},
+            {id: "B5TKeu06uYzJCV6Pss3g", name: "Fernando Mansilla"},
+            {id: "qHkrJuifPpn95wK3rm2A", name: "Andrea Chamorro"}
+          ];
+
+          // Si se seleccionó random, elegir una voz aleatoria
+          let selectedVoiceId = customParameters?.voice_id;
+          let selectedVoiceName = customParameters?.voice_name;
+
+          if (selectedVoiceId === 'random') {
+            const randomVoice = availableVoices[Math.floor(Math.random() * availableVoices.length)];
+            selectedVoiceId = randomVoice.id;
+            selectedVoiceName = randomVoice.name;
+            console.log("[ElevenLabs] Voz aleatoria seleccionada:", selectedVoiceName);
+          }
+
           // Configuración inicial con conversation_config_override para tts utilizando la estructura requerida
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
               user_name: userName,
-              voice_name: customParameters?.voice_name || ""
+              voice_name: selectedVoiceName || ""
             },
             conversation_config_override: {
               tts: {
-                voice_id: customParameters?.voice_id || ""
+                voice_id: selectedVoiceId || ""
               }
             }
           };
