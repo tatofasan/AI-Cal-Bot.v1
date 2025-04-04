@@ -4,106 +4,59 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prueba de Llamadas ElevenLabs</title>
-  <style>
-    body { 
-      font-family: Arial, sans-serif; 
-      max-width: 800px; 
-      margin: 0 auto; 
-      padding: 20px; 
-    }
-    h1 { color: #333; }
-    label { display: block; margin-top: 10px; }
-    textarea, input { 
-      width: 100%; 
-      padding: 8px; 
-      margin: 5px 0 15px; 
-      box-sizing: border-box; 
-    }
-    button { 
-      background: #4CAF50; 
-      color: white; 
-      padding: 10px 15px; 
-      border: none; 
-      cursor: pointer; 
-    }
-    pre { 
-      background: #f4f4f4; 
-      padding: 10px; 
-      border-radius: 5px; 
-      overflow-x: auto; 
-    }
-    #response { 
-      margin-top: 20px; 
-      background: #f8f8f8; 
-      padding: 10px; 
-      border-radius: 5px; 
-      min-height: 50px; 
-    }
-    #logs {
-      margin-top: 30px;
-      background: #000;
-      color: #00ff00;
-      padding: 10px;
-      border-radius: 5px;
-      height: 300px;
-      display: block;
-      overflow-y: auto;
-      font-family: monospace;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-    /* Estilos para el chat box estilo WhatsApp */
-    .chat-container {
-      border: 1px solid #ddd;
-      padding: 10px;
-      margin-top: 20px;
-      max-height: 300px;
-      overflow-y: auto;
-      background: #f0f0f0;
-    }
-    .chat-message {
-      padding: 10px;
-      margin: 10px;
-      border-radius: 15px;
-      max-width: 70%;
-      clear: both;
-    }
-    .chat-message.server {
-      background-color: #e5e5ea;
-      float: left;
-    }
-    .chat-message.client {
-      background-color: #DCF8C6;
-      float: right;
-    }
-  </style>
+  <!-- Incluir Tailwind CSS desde CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Prueba de Llamadas - ElevenLabs</h1>
-  <!-- Se inyecta la URL pública en el span con id "publicUrl" -->
-  <p>URL pública: <strong id="publicUrl">{{publicUrl}}</strong></p>
+<body class="bg-gray-50 font-sans antialiased">
+  <!-- Header con indicador de llamada -->
+  <header class="bg-blue-600 text-white p-4 shadow-md">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <h1 class="text-2xl font-bold">ElevenLabs Call Bot</h1>
+      <!-- Indicador de estado de llamada -->
+      <div id="callStatus" class="flex items-center space-x-2">
+        <span class="w-3 h-3 rounded-full bg-red-500" id="statusIndicator"></span>
+        <span id="statusText">Sin conexión</span>
+      </div>
+    </div>
+  </header>
+  
+  <main class="max-w-3xl mx-auto p-6">
+    <form id="callForm" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-6">
+      <div class="mb-4">
+        <label for="userName" class="block text-gray-700 text-sm font-bold mb-2">Nombre de la persona a llamar:</label>
+        <input type="text" id="userName" placeholder="Ingrese el nombre" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+      </div>
+      <div class="mb-4">
+        <label for="toNumber" class="block text-gray-700 text-sm font-bold mb-2">Número de teléfono (opcional, se usará el predeterminado si está vacío):</label>
+        <input type="text" id="toNumber" placeholder="+541161728140" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+      </div>
+      <!-- Nuevo combobox para selección de voz -->
+      <div class="mb-4">
+        <label for="voiceSelected" class="block text-gray-700 text-sm font-bold mb-2">Seleccionar Voz:</label>
+        <select id="voiceSelected" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+          <option value="15bJsujCI3tcDWeoZsQP">Ernesto Ferran</option>
+          <option value="dXzxF8F6baTsuGSxeorB">Valeria Rodriguez</option>
+        </select>
+      </div>
+      <div class="flex items-center justify-between">
+        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+          Iniciar Llamada
+        </button>
+      </div>
+    </form>
 
-  <form id="callForm">
-    <label for="userName">Nombre de la persona a llamar:</label>
-    <input type="text" id="userName" placeholder="Ingrese el nombre">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Conversación Transcrita</h2>
+    <!-- Chat box estilo WhatsApp -->
+    <div class="chat-container bg-gray-100 p-4 rounded shadow mb-6" id="chatBox" style="max-height:300px; overflow-y:auto;">
+      <!-- Los mensajes se inyectarán aquí desde el backend -->
+    </div>
 
-    <label for="toNumber">Número de teléfono (opcional, se usará el predeterminado si está vacío):</label>
-    <input type="text" id="toNumber" placeholder="+541161728140">
+    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Logs del Servidor</h2>
+    <div id="logs" class="bg-black text-green-400 p-4 rounded h-72 overflow-y-auto font-mono text-sm whitespace-pre-wrap"></div>
+  </main>
 
-    <button type="submit">Iniciar Llamada</button>
-  </form>
-
-  <div id="response"></div>
-  <h2>Conversacion Transcripta</h2>
-  <!-- Chat box estilo WhatsApp -->
-  <div class="chat-container" id="chatBox">
-    <!-- Los mensajes se inyectarán aquí desde el backend -->
-  </div>
-
-  <h2>Logs del servidor</h2>
-  <div id="logs"></div>
+  <!-- Toast para mostrar errores -->
+  <div id="toast" class="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow hidden"></div>
 
   <script>
     // WebSocket para recibir logs
@@ -145,16 +98,19 @@
       if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
         const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
         const messageDiv = document.createElement("div");
-        messageDiv.className = "chat-message server"; // Mensaje del servidor (alineado a la izquierda)
+        messageDiv.className = "chat-message server bg-gray-200 p-2 rounded-lg mb-2 max-w-[70%]";
         messageDiv.textContent = messageText;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
+        // Actualizar el indicador de llamada a conectado
+        document.getElementById('statusIndicator').classList.replace('bg-red-500', 'bg-green-500');
+        document.getElementById('statusText').textContent = 'Conectado';
       }
       // Procesar mensaje de transcripción del usuario
       else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
         const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
         const messageDiv = document.createElement("div");
-        messageDiv.className = "chat-message client"; // Mensaje del cliente (alineado a la derecha)
+        messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto";
         messageDiv.textContent = messageText;
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
@@ -163,16 +119,26 @@
 
     logsWs.onclose = () => {
       logsElement.innerHTML += '[Conexión a logs cerrada]\n';
+      // Actualizar el indicador de llamada a desconectado
+      document.getElementById('statusIndicator').classList.replace('bg-green-500', 'bg-red-500');
+      document.getElementById('statusText').textContent = 'Sin conexión';
     };
 
     document.getElementById('callForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const responseDiv = document.getElementById('response');
-      responseDiv.innerHTML = 'Iniciando llamada...';
+      
+      // Deshabilitar el botón de llamada para evitar múltiples envíos y mostrar spinner
+      const callButton = e.target.querySelector('button[type="submit"]');
+      callButton.disabled = true;
+      callButton.innerHTML = `<svg class="animate-spin h-5 w-5 mr-2 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+       </svg> Iniciando...`;
 
       try {
         const userNameValue = document.getElementById('userName').value;
         const toNumberValue = document.getElementById('toNumber').value || null;
+        const voiceIdValue = document.getElementById('voiceSelected').value;
 
         const response = await fetch('/outbound-call', {
           method: 'POST',
@@ -181,7 +147,8 @@
           },
           body: JSON.stringify({
             user_name: userNameValue,
-            to_number: toNumberValue
+            to_number: toNumberValue,
+            voice_id: voiceIdValue
           })
         });
 
@@ -189,10 +156,24 @@
           throw new Error("Error HTTP: " + response.status + " " + response.statusText);
         }
 
-        const data = await response.json();
-        responseDiv.innerHTML = '<h3>Respuesta</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        // Actualizar el botón y estado en caso de éxito
+        callButton.innerHTML = 'Llamada en progreso';
       } catch (error) {
-        responseDiv.innerHTML = '<h3>Error</h3><pre>' + error.toString() + '</pre>';
+        console.error(error);
+        callButton.innerHTML = 'Error. Reintentar';
+        // Mostrar toast de error
+        const toast = document.getElementById('toast');
+        toast.textContent = error.toString();
+        toast.classList.remove('hidden');
+        setTimeout(() => {
+          toast.classList.add('hidden');
+        }, 4000);
+      } finally {
+        // Rehabilitar el botón después de un tiempo o con la lógica adecuada.
+        setTimeout(() => {
+          callButton.disabled = false;
+          callButton.innerHTML = 'Iniciar Llamada';
+        }, 5000);
       }
     });
   </script>

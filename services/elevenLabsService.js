@@ -79,13 +79,18 @@ export const setupMediaStream = async (ws) => {
           const userName = customParameters?.user_name || "Usuario";
 
           console.log("[ElevenLabs] Enviando configuración inicial");
-
-          // Configuración inicial
+          console.log("[ElevenLabs] Voiceid",customParameters?.voice_id);
+          // Configuración inicial con conversation_config_override para tts utilizando la estructura requerida
           const initialConfig = {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
               user_name: userName,
             },
+            conversation_config_override: {
+              tts: {
+                voice_id: customParameters?.voice_id || ""
+              }
+            }
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));

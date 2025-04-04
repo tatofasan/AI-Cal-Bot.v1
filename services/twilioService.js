@@ -19,10 +19,11 @@ try {
   throw error;
 }
 
-export const twilioCall = async ({ user_name, to_number }) => {
+export const twilioCall = async ({ user_name, to_number, voice_id }) => {
   console.log("[Twilio] Iniciando llamada con parámetros:", {
     userName: user_name,
     toNumber: to_number || TO_PHONE_NUMBER,
+    voiceId: voice_id,
   });
 
   const destinationNumber = to_number || TO_PHONE_NUMBER;
@@ -30,8 +31,11 @@ export const twilioCall = async ({ user_name, to_number }) => {
   // Usar la URL forzada para asegurar que Twilio se conecte correctamente
   const publicUrl = REPLIT_URL;
 
-  // Construir la URL para TwiML con parámetros codificados
-  const twimlUrl = `${publicUrl}/outbound-call-twiml?user_name=${encodeURIComponent(user_name || "")}`;
+  // Construir la URL para TwiML con parámetros codificados, incluyendo voice_id si existe
+  const queryParams =
+    `user_name=${encodeURIComponent(user_name || "")}` +
+    (voice_id ? `&voice_id=${encodeURIComponent(voice_id)}` : "");
+  const twimlUrl = `${publicUrl}/outbound-call-twiml?${queryParams}`;
 
   console.log("[Twilio] URL TwiML:", twimlUrl);
 
@@ -67,4 +71,5 @@ export const twilioCall = async ({ user_name, to_number }) => {
     throw error;
   }
 };
+
 export { twilioClient };

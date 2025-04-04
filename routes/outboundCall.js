@@ -40,15 +40,16 @@ export default async function outboundCallRoutes(fastify, options) {
       });
     }
 
-    const { user_name = "el titular de la linea", to_number } = request.body;
+    const { user_name = "el titular de la linea", to_number, voice_id } = request.body;
 
     console.log("[DEBUG] Iniciando llamada con parámetros:", {
       user_name,
       to_number: to_number || "+541161728140",
+      voice_id,
     });
 
     try {
-      const callResult = await twilioCall({ user_name, to_number });
+      const callResult = await twilioCall({ user_name, to_number, voice_id });
       return reply.send(callResult);
     } catch (error) {
       console.error("[Outbound Call] Error:", error);
@@ -64,6 +65,7 @@ export default async function outboundCallRoutes(fastify, options) {
   fastify.all("/outbound-call-twiml", async (request, reply) => {
     try {
       const user_name = request.query.user_name || "el titular de la linea";
+      const voice_id = request.query.voice_id || "";
 
       // Usar la URL correcta
       const publicUrl = REPLIT_URL;
@@ -81,6 +83,7 @@ export default async function outboundCallRoutes(fastify, options) {
   <Connect>
     <Stream url="${wsUrl}">
       <Parameter name="user_name" value="${user_name}" />
+      <Parameter name="voice_id" value="${voice_id}" />
     </Stream>
   </Connect>
 </Response>`;
