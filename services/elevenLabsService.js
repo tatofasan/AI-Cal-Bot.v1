@@ -137,28 +137,30 @@ export const setupMediaStream = async (ws) => {
 
             case "audio":
               if (streamSid) {
-                if (message.audio?.chunk) {
+                const payload = message.audio?.chunk || message.audio_event?.audio_base_64;
+                if (payload) {
                   console.log("[ElevenLabs] Audio chunk recibido");
+                  
+                  // Enviar a Twilio
                   const audioData = {
                     event: "media",
                     streamSid,
                     media: {
-                      payload: message.audio.chunk,
+                      payload,
                     },
                   };
                   ws.send(JSON.stringify(audioData));
-                } else if (message.audio_event?.audio_base_64) {
-                  console.log(
-                    "[ElevenLabs] Audio chunk (audio_event) recibido",
-                  );
-                  const audioData = {
-                    event: "media",
-                    streamSid,
-                    media: {
-                      payload: message.audio_event.audio_base_64,
-                    },
-                  };
-                  ws.send(JSON.stringify(audioData));
+                  
+                  // Enviar a todos los clientes de logs (frontend)
+                  const { logClients } = await import('../utils/logger.js');
+                  logClients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                      client.send(JSON.stringify({
+                        type: "audio",
+                        payload
+                      }));
+                    }
+                  });
                 }
               } else {
                 console.log(

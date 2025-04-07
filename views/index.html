@@ -88,7 +88,21 @@
     };
 
     logsWs.onmessage = function(event) {
-      const log = event.data;
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        data = { type: "log", message: event.data };
+      }
+
+      if (data.type === "audio") {
+        // Convertir base64 a audio y reproducir
+        const audio = new Audio(`data:audio/mp3;base64,${data.payload}`);
+        audio.play().catch(console.error);
+        return;
+      }
+
+      const log = data.message || event.data;
       console.log("Log recibido:", log);
       
       // Mostrar el log en el div de logs
