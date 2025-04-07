@@ -152,14 +152,15 @@ export const setupMediaStream = async (ws) => {
                   ws.send(JSON.stringify(audioData));
                   
                   // Enviar a todos los clientes de logs (frontend)
-                  const { logClients } = await import('../utils/logger.js');
-                  logClients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                      client.send(JSON.stringify({
-                        type: "audio",
-                        payload
-                      }));
-                    }
+                  import('../utils/logger.js').then(({ logClients }) => {
+                    logClients.forEach(client => {
+                      if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({
+                          type: "audio",
+                          payload
+                        }));
+                      }
+                    });
                   });
                 }
               } else {
