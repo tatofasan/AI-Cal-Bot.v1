@@ -97,8 +97,11 @@
 
       if (data.type === "audio") {
         // Convertir base64 a audio y reproducir
-        const audio = new Audio(`data:audio/mp3;base64,${data.payload}`);
-        audio.play().catch(console.error);
+        const audio = new Audio(`data:audio/mpeg;base64,${data.payload}`);
+        audio.volume = 1.0; // Asegurar volumen máximo
+        audio.play().catch(error => {
+          console.error("Error reproduciendo audio:", error);
+        });
         return;
       }
 
