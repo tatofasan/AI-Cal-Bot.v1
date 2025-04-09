@@ -4,7 +4,7 @@ import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
 import fastifyCors from "@fastify/cors";
 import routes from "./routes/index.js";
-import { startNgrokTunnel } from "./services/ngrokService.js";
+// Remove ngrok import: import { startNgrokTunnel } from "./services/ngrokService.js";
 
 const PORT = process.env.PORT || 8000;
 
@@ -33,16 +33,10 @@ export const startServer = async () => {
     },
   });
 
-  // Obtener URL pública
-  let publicUrl = getPublicUrl();
-  try {
-    publicUrl = await startNgrokTunnel(PORT);
-    console.log(`[ngrok] Tunnel creado en: ${publicUrl}`);
-  } catch (error) {
-    console.error("[ngrok] Error con ngrok:", error.message);
-    console.log(`[ngrok] Usando URL de Replit: ${publicUrl}`);
-  }
-  publicUrl = getPublicUrl();
+  // Obtener URL pública directamente del servicio
+  const publicUrl = getPublicUrl();
+  console.log(`[Server] Usando URL pública: ${publicUrl}`);
+
   // Hacer disponible la URL pública para todas las rutas
   fastify.decorate("publicUrl", publicUrl);
 
@@ -52,6 +46,7 @@ export const startServer = async () => {
   // Iniciar el servidor
   try {
     await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    // Removed the ngrok log messages
     console.log(`[Server] Escuchando en el puerto ${PORT}`);
     console.log(`[Server] Servidor disponible en: ${publicUrl}`);
   } catch (err) {

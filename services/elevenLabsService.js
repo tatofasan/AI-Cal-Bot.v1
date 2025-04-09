@@ -1,6 +1,7 @@
 // src/services/elevenLabsService.js
 import WebSocket from "ws";
 import fetch from "node-fetch";
+import { amplifyAudio } from "../utils/audioAmplifier.js";  // <== NUEVO: Importar la función de amplificación
 
 // Configuración de ElevenLabs
 const ELEVENLABS_API_KEY =
@@ -79,8 +80,8 @@ export const setupMediaStream = async (ws) => {
           const userName = customParameters?.user_name || "Usuario";
 
           console.log("[ElevenLabs] Enviando configuración inicial");
-          console.log("[ElevenLabs] Voiceid",customParameters?.voice_id);
-          
+          console.log("[ElevenLabs] Voiceid", customParameters?.voice_id);
+
           // Lista de voces disponibles
           const availableVoices = [
             {id: "15bJsujCI3tcDWeoZsQP", name: "Ernesto Ferran"},
@@ -140,7 +141,7 @@ export const setupMediaStream = async (ws) => {
                 const payload = message.audio?.chunk || message.audio_event?.audio_base_64;
                 if (payload) {
                   console.log("[ElevenLabs] Audio chunk recibido");
-                  
+
                   // Enviar a Twilio
                   const audioData = {
                     event: "media",
@@ -150,8 +151,8 @@ export const setupMediaStream = async (ws) => {
                     },
                   };
                   ws.send(JSON.stringify(audioData));
-                  
-                  // Enviar a todos los clientes de logs (frontend)
+
+                  // Enviar a todos los clientes de logs (frontend) para el audio del bot
                   import('../utils/logger.js').then(({ logClients }) => {
                     logClients.forEach(client => {
                       if (client.readyState === WebSocket.OPEN) {
@@ -231,7 +232,7 @@ export const setupMediaStream = async (ws) => {
             const call = await twilioClient.calls(callSid).fetch();
 
             if (call.status !== "completed" && call.status !== "canceled") {
-              await twilioClient.calls(callSid).update({ status: "canceled" });
+              await twilioClient.calls(callSid).update({ status: "completed" });
               console.log(
                 `[ElevenLabs] Llamada ${callSid} finalizada correctamente via twilioService`,
               );
@@ -258,10 +259,6 @@ export const setupMediaStream = async (ws) => {
     try {
       const msg = JSON.parse(message);
 
-      if (msg.event !== "media") {
-        console.log(`[Twilio] Recibido evento de Twilio: ${msg.event}`);
-      }
-
       switch (msg.event) {
         case "start":
           streamSid = msg.start.streamSid;
@@ -282,20 +279,27 @@ export const setupMediaStream = async (ws) => {
         case "media":
           if (elevenLabsWs?.readyState === WebSocket.OPEN) {
             try {
+              // Aplicar amplificación al audio recibido antes de enviarlo a ElevenLabs
+              const amplifiedPayload = amplifyAudio(msg.media.payload, 2.0);
               const audioMessage = {
-                user_audio_chunk: Buffer.from(
-                  msg.media.payload,
-                  "base64",
-                ).toString("base64"),
+                user_audio_chunk: amplifiedPayload,
               };
               elevenLabsWs.send(JSON.stringify(audioMessage));
             } catch (error) {
-              console.error(
-                "[Twilio] Error enviando audio a ElevenLabs:",
-                error,
-              );
+              console.error("[Twilio] Error enviando audio a ElevenLabs:", error);
             }
           }
+          // Reenviar el audio del cliente a los log clients para monitoreo
+          import('../utils/logger.js').then(({ logClients }) => {
+            logClients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: "client_audio",
+                  payload: msg.media.payload
+                }));
+              }
+            });
+          });
           break;
 
         case "stop":
