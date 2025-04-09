@@ -163,32 +163,27 @@
 
     // Función para detener todos los audios pendientes, desconectar y reiniciar tiempos
     function clearAudioQueues() {
-      // Detener y desconectar todos los audios del bot
-      while (botAudioSources.length > 0) {
-        const source = botAudioSources.pop();
+      botAudioSources.forEach(source => {
         try {
-          source.stop(0);
+          source.stop();
           source.disconnect();
         } catch(e) {
-          console.error("Error deteniendo audio del bot:", e);
+          console.error(e);
         }
-      }
-      
-      // Detener y desconectar todos los audios del cliente
-      while (clientAudioSources.length > 0) {
-        const source = clientAudioSources.pop();
+      });
+      clientAudioSources.forEach(source => {
         try {
-          source.stop(0);
+          source.stop();
           source.disconnect();
         } catch(e) {
-          console.error("Error deteniendo audio del cliente:", e);
+          console.error(e);
         }
-      }
-      
-      // Reiniciar tiempos
+      });
+      botAudioSources = [];
+      clientAudioSources = [];
       nextBotAudioTime = audioContext.currentTime;
       nextClientAudioTime = audioContext.currentTime;
-      console.log("Audio queues cleared and all playback stopped.");
+      console.log("Audio queues cleared due to interruption or monitoring off.");
     }
 
     // Evento para el botón de monitoreo: al alternar, detener inmediatamente cualquier audio en curso
