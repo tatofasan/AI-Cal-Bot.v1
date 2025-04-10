@@ -1,6 +1,7 @@
 // src/services/elevenLabsService.js
 import WebSocket from "ws";
 import fetch from "node-fetch";
+import { amplifyAudio } from "../utils/audioAmplifier.js"; // Importamos la función de amplificación
 
 // Configuración de ElevenLabs
 const ELEVENLABS_API_KEY =
@@ -83,24 +84,30 @@ export const setupMediaStream = async (ws) => {
 
           // Lista de voces disponibles
           const availableVoices = [
-            {id: "15bJsujCI3tcDWeoZsQP", name: "Ernesto Ferran"},
-            {id: "dXzxF8F6baTsuGSxeorB", name: "Valeria Rodriguez"},
-            {id: "ukupJ4zdf9bo1Py6MiO6", name: "Bruno Fernandez"},
-            {id: "YExhVa4bZONzeingloMX", name: "Juan Carlos Gutierrez"},
-            {id: "rEVYTKPqwSMhytFPayIb", name: "Sandra Valenzuela"},
-            {id: "B5TKeu06uYzJCV6Pss3g", name: "Fernando Mansilla"},
-            {id: "qHkrJuifPpn95wK3rm2A", name: "Andrea Chamorro"}
+            { id: "15bJsujCI3tcDWeoZsQP", name: "Ernesto Ferran" },
+            { id: "dXzxF8F6baTsuGSxeorB", name: "Valeria Rodriguez" },
+            { id: "ukupJ4zdf9bo1Py6MiO6", name: "Bruno Fernandez" },
+            { id: "YExhVa4bZONzeingloMX", name: "Juan Carlos Gutierrez" },
+            { id: "rEVYTKPqwSMhytFPayIb", name: "Sandra Valenzuela" },
+            { id: "B5TKeu06uYzJCV6Pss3g", name: "Fernando Mansilla" },
+            { id: "qHkrJuifPpn95wK3rm2A", name: "Andrea Chamorro" },
           ];
 
           // Si se seleccionó random, elegir una voz aleatoria
           let selectedVoiceId = customParameters?.voice_id;
           let selectedVoiceName = customParameters?.voice_name;
 
-          if (selectedVoiceId === 'random') {
-            const randomVoice = availableVoices[Math.floor(Math.random() * availableVoices.length)];
+          if (selectedVoiceId === "random") {
+            const randomVoice =
+              availableVoices[
+                Math.floor(Math.random() * availableVoices.length)
+              ];
             selectedVoiceId = randomVoice.id;
             selectedVoiceName = randomVoice.name;
-            console.log("[ElevenLabs] Voz aleatoria seleccionada:", selectedVoiceName);
+            console.log(
+              "[ElevenLabs] Voz aleatoria seleccionada:",
+              selectedVoiceName,
+            );
           }
 
           // Configuración inicial con conversation_config_override para tts utilizando la estructura requerida
@@ -108,13 +115,13 @@ export const setupMediaStream = async (ws) => {
             type: "conversation_initiation_client_data",
             dynamic_variables: {
               user_name: userName,
-              voice_name: selectedVoiceName || ""
+              voice_name: selectedVoiceName || "",
             },
             conversation_config_override: {
               tts: {
-                voice_id: selectedVoiceId || ""
-              }
-            }
+                voice_id: selectedVoiceId || "",
+              },
+            },
           };
 
           elevenLabsWs.send(JSON.stringify(initialConfig));
@@ -137,12 +144,14 @@ export const setupMediaStream = async (ws) => {
 
             case "audio":
               if (streamSid) {
-                const payload = message.audio?.chunk || message.audio_event?.audio_base_64;
+                const payload =
+                  message.audio?.chunk || message.audio_event?.audio_base_64;
                 if (payload) {
                   console.log("[ElevenLabs] Audio chunk recibido");
 
                   // Generar un ID único para este fragmento de audio
-                  const audioId = Date.now() + Math.random().toString(36).substr(2, 9);
+                  const audioId =
+                    Date.now() + Math.random().toString(36).substr(2, 9);
 
                   // Enviar a Twilio
                   const audioData = {
@@ -155,14 +164,16 @@ export const setupMediaStream = async (ws) => {
                   ws.send(JSON.stringify(audioData));
 
                   // Enviar a todos los clientes de logs (frontend) para el audio del bot
-                  import('../utils/logger.js').then(({ logClients }) => {
-                    logClients.forEach(client => {
+                  import("../utils/logger.js").then(({ logClients }) => {
+                    logClients.forEach((client) => {
                       if (client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                          type: "audio",
-                          id: audioId, // Añadir ID único
-                          payload
-                        }));
+                        client.send(
+                          JSON.stringify({
+                            type: "audio",
+                            id: audioId, // Añadir ID único
+                            payload,
+                          }),
+                        );
                       }
                     });
                   });
@@ -282,32 +293,59 @@ export const setupMediaStream = async (ws) => {
         case "media":
           if (elevenLabsWs?.readyState === WebSocket.OPEN) {
             try {
+              // Amplificar el audio antes de enviarlo a ElevenLabs
+              const gainFactor = 2.0; // Factor de amplificación (ajustar según sea necesario)
+              const amplifiedPayload = amplifyAudio(
+                msg.media.payload,
+                gainFactor,
+              );
               const audioMessage = {
                 user_audio_chunk: Buffer.from(
-                  msg.media.payload,
-                  "base64"
+                  amplifiedPayload,
+                  "base64",
                 ).toString("base64"),
               };
               elevenLabsWs.send(JSON.stringify(audioMessage));
             } catch (error) {
               console.error(
-                "[Twilio] Error enviando audio a ElevenLabs:",
+                "[Twilio] Error al amplificar o enviar audio a ElevenLabs:",
                 error,
               );
+              // Si ocurre un error en la amplificación, intentamos enviar el audio original
+              try {
+                const originalAudioMessage = {
+                  user_audio_chunk: Buffer.from(
+                    msg.media.payload,
+                    "base64",
+                  ).toString("base64"),
+                };
+                elevenLabsWs.send(JSON.stringify(originalAudioMessage));
+                console.log(
+                  "[AudioAmplifier] Fallback: Audio original enviado sin amplificar",
+                );
+              } catch (fallbackError) {
+                console.error(
+                  "[Twilio] Error en fallback de audio:",
+                  fallbackError,
+                );
+              }
             }
           }
           // Reenviar el audio del cliente a los log clients para monitoreo con un ID único
-          import('../utils/logger.js').then(({ logClients }) => {
+          import("../utils/logger.js").then(({ logClients }) => {
             // Generar un ID único para este fragmento de audio del cliente
-            const clientAudioId = Date.now() + Math.random().toString(36).substr(2, 9);
+            const clientAudioId =
+              Date.now() + Math.random().toString(36).substr(2, 9);
 
-            logClients.forEach(client => {
+            logClients.forEach((client) => {
               if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: "client_audio",
-                  id: clientAudioId, // Añadir ID único
-                  payload: msg.media.payload
-                }));
+                client.send(
+                  JSON.stringify({
+                    type: "client_audio",
+                    id: clientAudioId, // Añadir ID único
+                    payload: msg.media.payload,
+                  }),
+                );
               }
             });
           });
