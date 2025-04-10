@@ -141,6 +141,9 @@ export const setupMediaStream = async (ws) => {
                 if (payload) {
                   console.log("[ElevenLabs] Audio chunk recibido");
 
+                  // Generar un ID único para este fragmento de audio
+                  const audioId = Date.now() + Math.random().toString(36).substr(2, 9);
+
                   // Enviar a Twilio
                   const audioData = {
                     event: "media",
@@ -157,6 +160,7 @@ export const setupMediaStream = async (ws) => {
                       if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                           type: "audio",
+                          id: audioId, // Añadir ID único
                           payload
                         }));
                       }
@@ -292,12 +296,16 @@ export const setupMediaStream = async (ws) => {
               );
             }
           }
-          // Reenviar el audio del cliente a los log clients para monitoreo
+          // Reenviar el audio del cliente a los log clients para monitoreo con un ID único
           import('../utils/logger.js').then(({ logClients }) => {
+            // Generar un ID único para este fragmento de audio del cliente
+            const clientAudioId = Date.now() + Math.random().toString(36).substr(2, 9);
+
             logClients.forEach(client => {
               if (client.readyState === WebSocket.OPEN) {
                 client.send(JSON.stringify({
                   type: "client_audio",
+                  id: clientAudioId, // Añadir ID único
                   payload: msg.media.payload
                 }));
               }

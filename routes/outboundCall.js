@@ -27,6 +27,87 @@ export default async function outboundCallRoutes(fastify, options) {
     }
   });
 
+  // Rutas para servir los archivos JS estáticos
+  fastify.get("/js/audioProcessor.js", (request, reply) => {
+    try {
+      const filePath = path.join(__dirname, "../views/js/audioProcessor.js");
+      if (fs.existsSync(filePath)) {
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        return reply.type("application/javascript").send(jsContent);
+      } else {
+        // Si el archivo no existe, servirlo desde la ruta en websockets.js
+        return reply.redirect("/logs-websocket/js/audioProcessor.js");
+      }
+    } catch (error) {
+      console.error("Error sirviendo audioProcessor.js:", error);
+      return reply.code(500).send({ error: "Error al cargar el archivo JS" });
+    }
+  });
+
+  fastify.get("/js/uiController.js", (request, reply) => {
+    try {
+      const filePath = path.join(__dirname, "../views/js/uiController.js");
+      if (fs.existsSync(filePath)) {
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        return reply.type("application/javascript").send(jsContent);
+      } else {
+        // Si el archivo no existe, servirlo desde la ruta en websockets.js
+        return reply.redirect("/logs-websocket/js/uiController.js");
+      }
+    } catch (error) {
+      console.error("Error sirviendo uiController.js:", error);
+      return reply.code(500).send({ error: "Error al cargar el archivo JS" });
+    }
+  });
+
+  fastify.get("/js/apiService.js", (request, reply) => {
+    try {
+      const filePath = path.join(__dirname, "../views/js/apiService.js");
+      if (fs.existsSync(filePath)) {
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        return reply.type("application/javascript").send(jsContent);
+      } else {
+        // Si el archivo no existe, servirlo desde la ruta en websockets.js
+        return reply.redirect("/logs-websocket/js/apiService.js");
+      }
+    } catch (error) {
+      console.error("Error sirviendo apiService.js:", error);
+      return reply.code(500).send({ error: "Error al cargar el archivo JS" });
+    }
+  });
+
+  fastify.get("/js/webSocketHandler.js", (request, reply) => {
+    try {
+      const filePath = path.join(__dirname, "../views/js/webSocketHandler.js");
+      if (fs.existsSync(filePath)) {
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        return reply.type("application/javascript").send(jsContent);
+      } else {
+        // Si el archivo no existe, servirlo desde la ruta en websockets.js
+        return reply.redirect("/logs-websocket/js/webSocketHandler.js");
+      }
+    } catch (error) {
+      console.error("Error sirviendo webSocketHandler.js:", error);
+      return reply.code(500).send({ error: "Error al cargar el archivo JS" });
+    }
+  });
+
+  fastify.get("/js/main.js", (request, reply) => {
+    try {
+      const filePath = path.join(__dirname, "../views/js/main.js");
+      if (fs.existsSync(filePath)) {
+        const jsContent = fs.readFileSync(filePath, "utf8");
+        return reply.type("application/javascript").send(jsContent);
+      } else {
+        // Si el archivo no existe, servirlo desde la ruta en websockets.js
+        return reply.redirect("/logs-websocket/js/main.js");
+      }
+    } catch (error) {
+      console.error("Error sirviendo main.js:", error);
+      return reply.code(500).send({ error: "Error al cargar el archivo JS" });
+    }
+  });
+
   // Ruta para iniciar la llamada
   fastify.post("/outbound-call", async (request, reply) => {
     if (!request.body) {
