@@ -4,7 +4,7 @@ import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
 import fastifyCors from "@fastify/cors";
 import routes from "./routes/index.js";
-// Remove ngrok import: import { startNgrokTunnel } from "./services/ngrokService.js";
+// Ngrok ya no es necesario, usando URLs de Replit directamente
 
 import { appConfig, getPublicUrl } from "./services/config/appConfig.js";
 
