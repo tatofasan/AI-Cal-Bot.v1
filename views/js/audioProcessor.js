@@ -51,6 +51,11 @@ const AudioProcessor = (() => {
 
   // Reproducción de audio
   function playBotAudioChunk(base64Data, messageId) {
+    // Verificar primero si estamos monitoreando, si no, ni siquiera procesamos el ID
+    if (!isMonitoring) {
+      return;
+    }
+    
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
@@ -58,11 +63,6 @@ const AudioProcessor = (() => {
       return;
     }
     processedAudioIds.add(audioId);
-
-    // Si no estamos monitoreando, no reproducir
-    if (!isMonitoring) {
-      return;
-    }
 
     try {
       initAudioSystem();
@@ -93,6 +93,11 @@ const AudioProcessor = (() => {
   }
 
   function playClientAudioChunk(base64Data, messageId) {
+    // Verificar primero si estamos monitoreando, si no, ni siquiera procesamos el ID
+    if (!isMonitoring) {
+      return;
+    }
+    
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
@@ -100,11 +105,6 @@ const AudioProcessor = (() => {
       return;
     }
     processedAudioIds.add(audioId);
-
-    // Si no estamos monitoreando, no reproducir
-    if (!isMonitoring) {
-      return;
-    }
 
     try {
       initAudioSystem();
@@ -187,6 +187,33 @@ const AudioProcessor = (() => {
     if (masterGainNode) {
       // Cambio abrupto a 0 para silenciar inmediatamente todo el audio
       masterGainNode.gain.setValueAtTime(isMonitoring ? 1 : 0, getAudioContext().currentTime);
+    }
+
+    // Si estamos desactivando el monitoreo, detenemos todas las fuentes de audio activas
+    if (!isMonitoring) {
+      // Detener todas las fuentes de audio del bot
+      botAudioSources.forEach(source => { 
+        try { 
+          source.stop(); 
+          source.disconnect(); 
+        } catch(e) { 
+          // Ignorar errores si ya estaba detenido
+        } 
+      });
+      
+      // Detener todas las fuentes de audio del cliente
+      clientAudioSources.forEach(source => { 
+        try { 
+          source.stop(); 
+          source.disconnect(); 
+        } catch(e) { 
+          // Ignorar errores si ya estaba detenido
+        } 
+      });
+      
+      // Vaciar los arrays
+      botAudioSources = [];
+      clientAudioSources = [];
     }
 
     // Limpiar colas de audio existentes
