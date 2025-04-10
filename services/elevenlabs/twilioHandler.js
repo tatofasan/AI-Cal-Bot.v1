@@ -1,6 +1,7 @@
 // src/services/elevenlabs/twilioHandler.js
 import WebSocket from "ws";
 import { amplifyAudio } from "../../utils/audioAmplifier.js";
+import { twilioClient } from "../twilioService.js";
 
 /**
  * Maneja los mensajes recibidos desde el WebSocket de Twilio
@@ -110,7 +111,6 @@ async function handleMediaMessage(msg, elevenLabsWs) {
 export const endTwilioCall = async (callSid) => {
   if (callSid) {
     try {
-      const { twilioClient } = await import("../twilioService.js");
       // Verificar estado actual de la llamada
       const call = await twilioClient.calls(callSid).fetch();
 

@@ -2,7 +2,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { REPLIT_URL } from '../../services/urlService.js';
+import { APP_PUBLIC_URL } from '../../services/config/appConfig.js';
 
 // Para obtener __dirname en ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +19,7 @@ export const handleIndexRoute = async (request, reply) => {
       path.join(__dirname, "../../views/index.html"),
       "utf8",
     );
-    const publicUrl = REPLIT_URL;
+    const publicUrl = APP_PUBLIC_URL;
     html = html.replace(/{{publicUrl}}/g, publicUrl);
     return reply.type("text/html").send(html);
   } catch (error) {

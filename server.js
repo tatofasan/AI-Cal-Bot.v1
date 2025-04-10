@@ -6,9 +6,9 @@ import fastifyCors from "@fastify/cors";
 import routes from "./routes/index.js";
 // Remove ngrok import: import { startNgrokTunnel } from "./services/ngrokService.js";
 
-const PORT = process.env.PORT || 8000;
+import { appConfig, getPublicUrl } from "./services/config/appConfig.js";
 
-import { getPublicUrl } from "./services/urlService.js";
+const PORT = appConfig.server.port;
 
 export const startServer = async () => {
   const fastify = Fastify({
@@ -45,7 +45,7 @@ export const startServer = async () => {
 
   // Iniciar el servidor
   try {
-    await fastify.listen({ port: PORT, host: "0.0.0.0" });
+    await fastify.listen({ port: PORT, host: appConfig.server.host });
     // Removed the ngrok log messages
     console.log(`[Server] Escuchando en el puerto ${PORT}`);
     console.log(`[Server] Servidor disponible en: ${publicUrl}`);

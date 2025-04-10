@@ -1,6 +1,5 @@
 // src/routes/outbound/callController.js
-import { twilioCall, twilioClient } from "../../services/twilioService.js";
-import { REPLIT_URL } from '../../services/urlService.js';
+import { twilioCall, twilioClient, twiml } from "../../services/twilioService.js";
 
 /**
  * Inicia una llamada saliente a través de Twilio
@@ -45,28 +44,17 @@ export const generateTwiML = async (request, reply) => {
     const user_name = request.query.user_name || "el titular de la linea";
     const voice_id = request.query.voice_id || "";
     const voice_name = request.query.voice_name || '';
-    const publicUrl = REPLIT_URL;
-    let wsProtocol = publicUrl.startsWith("https://") ? "wss://" : "ws://";
-    let wsHost = publicUrl.replace(/^https?:\/\//, "");
-    let wsUrl = `${wsProtocol}${wsHost}/outbound-media-stream`;
-    console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl} y voice_name: ${voice_name}`);
-    const twimlResponse = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Connect>
-    <Stream url="${wsUrl}">
-      <Parameter name="user_name" value="${user_name}" />
-      <Parameter name="voice_id" value="${voice_id}" />
-      <Parameter name="voice_name" value="${voice_name}" />
-    </Stream>
-  </Connect>
-</Response>`;
+
+    const twimlResponse = twiml.generateStreamTwiML({ 
+      user_name, 
+      voice_id, 
+      voice_name 
+    });
+
     return reply.type("text/xml").send(twimlResponse);
   } catch (error) {
     console.error(`[TwiML] Error generando TwiML: ${error}`);
-    const fallbackTwiML = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>Lo sentimos, ha ocurrido un error en la aplicación.</Say>
-</Response>`;
+    const fallbackTwiML = twiml.generateFallbackTwiML();
     return reply.type("text/xml").send(fallbackTwiML);
   }
 };
