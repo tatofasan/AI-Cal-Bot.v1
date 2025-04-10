@@ -2,6 +2,7 @@
 import WebSocket from "ws";
 import { amplifyAudio } from "../../utils/audioAmplifier.js";
 import { twilioClient } from "../twilioService.js";
+import { broadcastToSession, getSession } from "../../utils/sessionManager.js";
 
 /**
  * Maneja los mensajes recibidos desde el WebSocket de Twilio
@@ -21,10 +22,12 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
         // Extraer y guardar los parámetros personalizados
         if (msg.start.customParameters) {
           state.customParameters = msg.start.customParameters;
-          console.log("[Twilio] Parámetros personalizados recibidos");
+          console.log("[Twilio] Parámetros personalizados recibidos", 
+            { sessionId: state.sessionId });
         }
 
-        console.log(`[Twilio] Stream iniciado - StreamSid: ${state.streamSid}`);
+        console.log(`[Twilio] Stream iniciado - StreamSid: ${state.streamSid}`, 
+          { sessionId: state.sessionId });
 
         // Ejecutar callback de inicio de stream (para conectar con ElevenLabs)
         if (onStreamStart) {
@@ -33,22 +36,25 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
         break;
 
       case "media":
-        await handleMediaMessage(msg, elevenLabsWs);
+        await handleMediaMessage(msg, elevenLabsWs, state.sessionId);
         break;
 
       case "stop":
-        console.log(`[Twilio] Stream ${state.streamSid} finalizado`);
+        console.log(`[Twilio] Stream ${state.streamSid} finalizado`, 
+          { sessionId: state.sessionId });
         if (elevenLabsWs?.readyState === WebSocket.OPEN) {
           elevenLabsWs.close();
         }
         break;
 
       default:
-        console.log(`[Twilio] Evento no manejado: ${msg.event}`);
+        console.log(`[Twilio] Evento no manejado: ${msg.event}`, 
+          { sessionId: state.sessionId });
         break;
     }
   } catch (error) {
-    console.error("[Twilio] Error procesando mensaje de Twilio:", error);
+    console.error("[Twilio] Error procesando mensaje de Twilio:", error, 
+      { sessionId: state.sessionId });
   }
 };
 
@@ -56,8 +62,9 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
  * Maneja específicamente los mensajes de media desde Twilio
  * @param {Object} msg - Mensaje de media recibido
  * @param {WebSocket} elevenLabsWs - WebSocket de conexión con ElevenLabs
+ * @param {string} sessionId - ID de la sesión
  */
-async function handleMediaMessage(msg, elevenLabsWs) {
+async function handleMediaMessage(msg, elevenLabsWs, sessionId) {
   if (elevenLabsWs?.readyState === WebSocket.OPEN) {
     try {
       // Amplificar el audio antes de enviarlo a ElevenLabs
@@ -70,7 +77,8 @@ async function handleMediaMessage(msg, elevenLabsWs) {
     } catch (error) {
       console.error(
         "[Twilio] Error al amplificar o enviar audio a ElevenLabs:",
-        error
+        error,
+        { sessionId }
       );
       // Si ocurre un error en la amplificación, intentamos enviar el audio original
       try {
@@ -78,30 +86,26 @@ async function handleMediaMessage(msg, elevenLabsWs) {
           user_audio_chunk: Buffer.from(msg.media.payload, "base64").toString("base64"),
         };
         elevenLabsWs.send(JSON.stringify(originalAudioMessage));
-        console.log("[AudioAmplifier] Fallback: Audio original enviado sin amplificar");
+        console.log("[AudioAmplifier] Fallback: Audio original enviado sin amplificar", 
+          { sessionId });
       } catch (fallbackError) {
-        console.error("[Twilio] Error en fallback de audio:", fallbackError);
+        console.error("[Twilio] Error en fallback de audio:", fallbackError, 
+          { sessionId });
       }
     }
   }
 
-  // Reenviar el audio del cliente a los log clients para monitoreo con un ID único
-  const { logClients } = await import("../../utils/logger.js");
-
   // Generar un ID único para este fragmento de audio del cliente
   const clientAudioId = Date.now() + Math.random().toString(36).substr(2, 9);
 
-  logClients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(
-        JSON.stringify({
-          type: "client_audio",
-          id: clientAudioId, // Añadir ID único
-          payload: msg.media.payload,
-        })
-      );
-    }
-  });
+  // Enviar el audio a los clientes de logs de esta sesión específica
+  if (sessionId) {
+    broadcastToSession(sessionId, {
+      type: "client_audio",
+      id: clientAudioId,
+      payload: msg.media.payload
+    });
+  }
 }
 
 /**

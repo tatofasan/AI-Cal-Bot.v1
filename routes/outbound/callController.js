@@ -14,18 +14,44 @@ export const initiateCall = async (request, reply) => {
       error: "No request body provided",
     });
   }
-  const { user_name = "el titular de la linea", to_number, voice_id, voice_name } = request.body;
+
+  const { 
+    user_name = "el titular de la linea", 
+    to_number, 
+    voice_id, 
+    voice_name,
+    sessionId 
+  } = request.body;
+
+  // Registrar el sessionId para asociar los logs con la sesión específica
+  const sessionContext = sessionId ? { sessionId } : {};
+
   console.log("[DEBUG] Iniciando llamada con parámetros:", {
     user_name,
     to_number: to_number || "+541161728140",
     voice_id,
-    voice_name
+    voice_name,
+    ...sessionContext
   });
+
   try {
-    const callResult = await twilioCall({ user_name, to_number, voice_id, voice_name });
+    // Pasar el sessionId a la función de llamada
+    const callParams = { 
+      user_name, 
+      to_number, 
+      voice_id, 
+      voice_name 
+    };
+
+    // Si tenemos un sessionId, lo incluimos para el query string de TwiML
+    if (sessionId) {
+      callParams.sessionId = sessionId;
+    }
+
+    const callResult = await twilioCall(callParams);
     return reply.send(callResult);
   } catch (error) {
-    console.error("[Outbound Call] Error:", error);
+    console.error("[Outbound Call] Error:", error, sessionContext);
     return reply.code(500).send({
       success: false,
       error: `Fallo al iniciar la llamada: ${error.message}`,
@@ -44,11 +70,18 @@ export const generateTwiML = async (request, reply) => {
     const user_name = request.query.user_name || "el titular de la linea";
     const voice_id = request.query.voice_id || "";
     const voice_name = request.query.voice_name || '';
+    const sessionId = request.query.sessionId || '';
+
+    // Registrar el sessionId para asociar los logs con la sesión específica
+    const sessionContext = sessionId ? { sessionId } : {};
+
+    console.log("[TwiML] Generando TwiML para usuario:", user_name, sessionContext);
 
     const twimlResponse = twiml.generateStreamTwiML({ 
       user_name, 
       voice_id, 
-      voice_name 
+      voice_name,
+      sessionId 
     });
 
     return reply.type("text/xml").send(twimlResponse);
@@ -72,16 +105,21 @@ export const endCall = async (request, reply) => {
       error: "No callSid provided",
     });
   }
-  const { callSid } = request.body;
+
+  const { callSid, sessionId } = request.body;
+
+  // Registrar el sessionId para asociar los logs con la sesión específica
+  const sessionContext = sessionId ? { sessionId } : {};
+
   try {
     const call = await twilioClient.calls(callSid).update({ status: "completed" });
-    console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`);
+    console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`, sessionContext);
     return reply.send({
       success: true,
       message: `Call ${callSid} ended`,
     });
   } catch (error) {
-    console.error(`[Twilio] Error cortando la llamada ${callSid}:`, error);
+    console.error(`[Twilio] Error cortando la llamada ${callSid}:`, error, sessionContext);
     return reply.code(500).send({
       success: false,
       error: `Error ending call: ${error.message}`,

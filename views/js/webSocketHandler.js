@@ -2,11 +2,31 @@
 const WebSocketHandler = (() => {
   // Variables privadas
   let logsWebSocket = null;
+  let sessionId = null;
+
+  // Generar o recuperar el sessionId
+  function getSessionId() {
+    if (!sessionId) {
+      // Intentar recuperar de localStorage
+      sessionId = localStorage.getItem('callBotSessionId');
+
+      // Si no existe, generar uno nuevo
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        localStorage.setItem('callBotSessionId', sessionId);
+      }
+    }
+
+    return sessionId;
+  }
 
   // Conectar al WebSocket de logs
   function connectToLogsWebSocket(onMessageCallback, onOpenCallback, onCloseCallback) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    logsWebSocket = new WebSocket(wsProtocol + '//' + window.location.host + '/logs-websocket');
+
+    // Incluir sessionId como parámetro de consulta
+    const wsSessionId = getSessionId();
+    logsWebSocket = new WebSocket(`${wsProtocol}//${window.location.host}/logs-websocket?sessionId=${wsSessionId}`);
 
     logsWebSocket.onopen = function() {
       if (onOpenCallback) onOpenCallback();
@@ -44,7 +64,8 @@ const WebSocketHandler = (() => {
   // API pública
   return {
     connectToLogsWebSocket,
-    closeConnection
+    closeConnection,
+    getSessionId
   };
 })();
 

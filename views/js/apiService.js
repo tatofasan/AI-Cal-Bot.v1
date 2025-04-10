@@ -19,6 +19,11 @@ const ApiService = (() => {
       }
     }
 
+    // Añadir sessionId a los datos de la llamada
+    if (window.WebSocketHandler && typeof window.WebSocketHandler.getSessionId === 'function') {
+      callData.sessionId = window.WebSocketHandler.getSessionId();
+    }
+
     console.log("Datos finales de la llamada:", callData);
 
     const response = await fetch('/outbound-call', {
@@ -36,10 +41,16 @@ const ApiService = (() => {
 
   // Finalizar una llamada
   async function endCall(callSid) {
+    // Añadir sessionId para asegurar que se corta la llamada correcta
+    const data = { 
+      callSid, 
+      sessionId: window.WebSocketHandler.getSessionId() 
+    };
+
     const response = await fetch('/end-call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ callSid })
+      body: JSON.stringify(data)
     });
 
     if (!response.ok) {

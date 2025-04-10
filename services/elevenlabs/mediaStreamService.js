@@ -2,34 +2,80 @@
 import WebSocket from "ws";
 import { setupElevenLabsConnection, closeElevenLabsConnection } from "./connectionManager.js";
 import { handleTwilioMessage } from "./twilioHandler.js";
+import { 
+  registerTwilioConnection, 
+  removeTwilioConnection,
+  getSession
+} from "../../utils/sessionManager.js";
 
 /**
  * Configura el stream de medios para la comunicación entre Twilio y ElevenLabs
  * @param {WebSocket} ws - WebSocket de conexión con Twilio
+ * @param {string} sessionId - ID de sesión para asociar con esta conexión
  */
-export const setupMediaStream = async (ws) => {
+export const setupMediaStream = async (ws, sessionId) => {
+  // Validar que tenemos un sessionId
+  if (!sessionId) {
+    console.error("[Server] ERROR: setupMediaStream llamado sin sessionId");
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    console.info("[Server] Generado sessionId de emergencia:", sessionId);
+  }
+
   console.info(
-    "[Server] WebSocket connection established for outbound media stream"
+    "[Server] WebSocket connection established for outbound media stream",
+    { sessionId }
   );
+
+  // Registrar la conexión de Twilio en el gestor de sesiones
+  registerTwilioConnection(sessionId, ws);
 
   // Variables para mantener el estado
   const state = {
     streamSid: null,
     callSid: null,
     customParameters: {},
+    sessionId: sessionId // Agregar sessionId al estado
   };
 
   let elevenLabsWs = null;
 
   // Manejador de errores
   ws.on("error", (error) => {
-    console.error("[WebSocket Error]", error);
+    console.error("[WebSocket Error]", error, { sessionId });
   });
 
   // Procesar mensajes de Twilio
   ws.on("message", (message) => {
     try {
       const msg = JSON.parse(message);
+
+      // Debug: Log completo del mensaje recibido para diagnóstico
+      console.log("[Twilio] Mensaje recibido:", 
+                 { type: msg.event, hasSessionId: msg.sessionId ? 'sí' : 'no', sessionId });
+
+      // Si tenemos un evento 'start', verificar los parámetros personalizados para el sessionId
+      if (msg.event === 'start' && msg.start && msg.start.customParameters) {
+        console.log("[Twilio] Parámetros personalizados:", msg.start.customParameters);
+
+        // Si hay un sessionId en los parámetros personalizados y no coincide con el actual,
+        // actualizar el sessionId
+        if (msg.start.customParameters.sessionId && 
+            msg.start.customParameters.sessionId !== sessionId) {
+          const newSessionId = msg.start.customParameters.sessionId;
+          console.log(`[Twilio] Actualizando sessionId de ${sessionId} a ${newSessionId}`);
+
+          // Actualizar sessionId en el estado
+          state.sessionId = newSessionId;
+          ws.sessionId = newSessionId;
+
+          // Re-registrar la conexión con el nuevo sessionId
+          removeTwilioConnection(ws);
+          registerTwilioConnection(newSessionId, ws);
+
+          // Actualizar la referencia para logs futuros
+          sessionId = newSessionId;
+        }
+      }
 
       // Usar la función de manejo de mensajes de Twilio
       handleTwilioMessage(
@@ -44,13 +90,14 @@ export const setupMediaStream = async (ws) => {
         }
       );
     } catch (error) {
-      console.error("[Twilio] Error procesando mensaje de Twilio:", error);
+      console.error("[Twilio] Error procesando mensaje de Twilio:", error, { sessionId });
     }
   });
 
   // Manejar cierre de conexión
   ws.on("close", () => {
-    console.log("[Twilio] Cliente desconectado");
+    console.log("[Twilio] Cliente desconectado", { sessionId });
     closeElevenLabsConnection(elevenLabsWs);
+    removeTwilioConnection(ws);
   });
 };
