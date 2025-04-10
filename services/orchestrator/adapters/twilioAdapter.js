@@ -1,6 +1,7 @@
 // services/orchestrator/adapters/twilioAdapter.js
 import { BaseAdapter } from './baseAdapter.js';
 import WebSocket from 'ws';
+import { broadcastToSession } from '../../../utils/sessionManager.js';
 
 /**
  * Adaptador para mensajes de Twilio
@@ -106,6 +107,12 @@ export class TwilioAdapter extends BaseAdapter {
       console.error("[TwilioAdapter] Mensaje de media sin payload", { sessionId });
       return;
     }
+
+    // También enviar el audio al frontend para monitoreo
+    broadcastToSession(sessionId, {
+      type: "client_audio",
+      payload: message.media.payload
+    });
 
     // Preparar mensaje estándar para el orquestador
     const standardMessage = this.convertToStandardFormat(message, sessionId);

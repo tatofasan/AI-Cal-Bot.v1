@@ -1,5 +1,6 @@
 // services/orchestrator/streamManager.js
 import WebSocket from 'ws';
+import { broadcastToSession } from '../../utils/sessionManager.js';
 
 /**
  * Gestiona todas las conexiones de WebSocket y el enrutamiento de mensajes
@@ -25,9 +26,10 @@ export class StreamManager {
 
     // Configuración de logs
     this.logConfig = {
-      routeFrequency: 50,  // Mostrar solo 1 de cada 50 mensajes de enrutamiento
+      routeFrequency: 100,  // Mostrar solo 1 de cada 100 mensajes de enrutamiento
       connectionCheck: false, // Deshabilitar logs de verificación de conexiones
-      mediaMessages: false   // Deshabilitar logs de mensajes de media regulares
+      mediaMessages: false,   // Deshabilitar logs de mensajes de media regulares
+      verboseConnection: false // Deshabilitar logs detallados de conexiones
     };
   }
 
@@ -46,8 +48,12 @@ export class StreamManager {
     // Si ya existe una conexión para este sessionId y tipo, la cerramos primero
     if (this.connections[type].has(sessionId)) {
       const existingWs = this.connections[type].get(sessionId);
-      console.log(`[StreamManager] Ya existe una conexión ${type} para sesión ${sessionId}, reemplazando...`, 
-                { sessionId });
+
+      // Log reducido
+      if (this.logConfig.verboseConnection) {
+        console.log(`[StreamManager] Ya existe una conexión ${type} para sesión ${sessionId}, reemplazando...`, 
+                  { sessionId });
+      }
 
       // Si la conexión existente aún está abierta, la cerramos
       if (existingWs.readyState === WebSocket.OPEN) {
@@ -73,7 +79,7 @@ export class StreamManager {
     this.sessionStates.set(sessionId, updatedState);
 
     // Debug: verificar si tenemos las propiedades clave en el estado (solo si es relevante)
-    if (updatedState.streamSid && type === 'twilio') {
+    if (updatedState.streamSid && type === 'twilio' && this.logConfig.verboseConnection) {
       console.log(`[StreamManager] Estado actualizado con streamSid: ${updatedState.streamSid}`, 
                 { sessionId });
     }
@@ -82,8 +88,11 @@ export class StreamManager {
     ws.sessionId = sessionId;
     ws.connectionType = type;
 
-    console.log(`[StreamManager] Registrada conexión ${type} para sesión ${sessionId}`, 
+    // Log reducido
+    if (this.logConfig.verboseConnection) {
+      console.log(`[StreamManager] Registrada conexión ${type} para sesión ${sessionId}`, 
                 { sessionId });
+    }
 
     // Configurar cierre de la conexión
     ws.on('close', () => this.removeConnection(ws));
@@ -123,11 +132,15 @@ export class StreamManager {
       const currentWs = this.connections[connectionType].get(sessionId);
       if (currentWs === ws) {
         this.connections[connectionType].delete(sessionId);
-        console.log(`[StreamManager] Eliminada conexión ${connectionType} para sesión ${sessionId}`, 
-                    { sessionId });
+
+        // Eliminado log que spameaba el frontend
+        // Este log ya no se mostrará
       } else {
-        console.log(`[StreamManager] Se intentó eliminar una conexión ${connectionType} desactualizada para sesión ${sessionId}`, 
-                   { sessionId });
+        // También se elimina este log para reducir spam
+        if (this.logConfig.verboseConnection) {
+          console.log(`[StreamManager] Se intentó eliminar una conexión ${connectionType} desactualizada para sesión ${sessionId}`, 
+                    { sessionId });
+        }
       }
     }
   }
@@ -143,7 +156,7 @@ export class StreamManager {
    * @param {string} message.sessionId - ID de la sesión
    */
   routeMessage(message) {
-    const { source, target, type, payload, sessionId } = message;
+    const { source, target, type, messageType, payload, sessionId } = message;
 
     // Incrementar contador para logs
     this.logCounter++;
@@ -152,6 +165,15 @@ export class StreamManager {
     if (!sessionId) {
       console.error('[StreamManager] Error: intento de enrutar mensaje sin sessionId');
       return false;
+    }
+
+    // Procesar inmediatamente eventos de interrupciones
+    if (type === 'control' && messageType === 'call_control' && message.action === 'clear_buffer') {
+      // Notificar al frontend de forma explícita sobre la interrupción
+      broadcastToSession(sessionId, {
+        type: "control",
+        action: "clear_buffer"
+      });
     }
 
     // Obtener el estado de la sesión actual
@@ -234,6 +256,16 @@ export class StreamManager {
       else if (type === 'transcript') {
         // Aquí podríamos enrutar al frontend si tuviéramos esa conexión
       }
+      // Para eventos de control específicos (ej: interrupciones)
+      else if (type === 'control' && messageType === 'call_control') {
+        // Si es una interrupción, también notificar al frontend
+        if (message.action === 'clear_buffer') {
+          broadcastToSession(sessionId, {
+            type: "control",
+            action: "clear_buffer"
+          });
+        }
+      }
     }
 
     return false;
@@ -260,8 +292,11 @@ export class StreamManager {
 
     // Verificar si la conexión está abierta
     if (ws.readyState !== WebSocket.OPEN) {
-      console.log(`[StreamManager] La conexión ${targetType} para sesión ${sessionId} no está abierta`, 
+      // Reducción de logs para este error también
+      if (this.logCounter % this.logConfig.routeFrequency === 0) {
+        console.log(`[StreamManager] La conexión ${targetType} para sesión ${sessionId} no está abierta`, 
                   { sessionId });
+      }
       return false;
     }
 
@@ -272,7 +307,12 @@ export class StreamManager {
 
       // Reducir logs para mensajes de media
       const isMediaMessage = payload && payload.event === 'media';
-      if (!isMediaMessage || (this.logCounter % this.logConfig.routeFrequency === 0 && this.logConfig.mediaMessages)) {
+
+      // ELIMINADO: El log específico de "Mensaje enviado a elevenlabs para sesión"
+      // Solo mantenemos otros logs que no sean el mensaje específico que queremos eliminar
+      if (!isMediaMessage && targetType !== 'elevenlabs' && 
+          (this.logCounter % (this.logConfig.routeFrequency * 5) === 0 && this.logConfig.mediaMessages)) {
+        // Excluimos el log específico para elevenlabs
         console.log(`[StreamManager] Mensaje enviado a ${targetType} para sesión ${sessionId}`, 
                    { sessionId });
       }
@@ -283,6 +323,39 @@ export class StreamManager {
                     { sessionId });
       return false;
     }
+  }
+
+  /**
+   * Envía un evento de interrupción a Twilio para limpiar el buffer de audio
+   * @param {string} sessionId - ID de la sesión
+   * @returns {boolean} true si se envió correctamente
+   */
+  sendInterruptionToTwilio(sessionId) {
+    const sessionState = this.getSessionState(sessionId);
+    const streamSid = sessionState.streamSid;
+
+    if (!streamSid) {
+      console.error(`[StreamManager] No hay streamSid para interrupción en sesión ${sessionId}`);
+      return false;
+    }
+
+    if (!this.connections.twilio.has(sessionId)) {
+      console.error(`[StreamManager] No hay conexión Twilio para sesión ${sessionId}`);
+      return false;
+    }
+
+    const clearMessage = {
+      event: 'clear',
+      streamSid: streamSid
+    };
+
+    // Enviar notificación al frontend también
+    broadcastToSession(sessionId, {
+      type: "control",
+      action: "clear_buffer"
+    });
+
+    return this.sendToTarget('twilio', sessionId, clearMessage);
   }
 
   /**
@@ -304,8 +377,8 @@ export class StreamManager {
     const newState = { ...currentState, ...updates };
     this.sessionStates.set(sessionId, newState);
 
-    // Si hay un cambio en streamSid, registrarlo para depuración
-    if (updates.streamSid && updates.streamSid !== currentState.streamSid) {
+    // Si hay un cambio en streamSid, registrarlo para depuración (solo si está activado)
+    if (updates.streamSid && updates.streamSid !== currentState.streamSid && this.logConfig.verboseConnection) {
       console.log(`[StreamManager] streamSid actualizado para sesión ${sessionId}: ${updates.streamSid}`, 
                  { sessionId });
     }

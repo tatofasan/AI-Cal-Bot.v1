@@ -85,6 +85,12 @@ export class ElevenLabsAdapter extends BaseAdapter {
     // Convertir a formato estándar
     const standardMessage = this.convertToStandardFormat(message, sessionId);
 
+    // También enviar el audio al frontend para monitoreo
+    broadcastToSession(sessionId, {
+      type: "audio",
+      payload: payload
+    });
+
     // Enviar al streamManager para enrutamiento
     this.orchestrator.streamManager.routeMessage(standardMessage);
   }
@@ -104,10 +110,19 @@ export class ElevenLabsAdapter extends BaseAdapter {
 
     console.log("[ElevenLabsAdapter] Recibido evento de interrupción", { sessionId });
 
+    // Notificar al frontend sobre la interrupción
+    broadcastToSession(sessionId, {
+      type: "control",
+      action: "clear_buffer"
+    });
+
     if (!streamSid) {
       console.log("[ElevenLabsAdapter] No hay streamSid para enviar interrupción", { sessionId });
       return;
     }
+
+    // Enviar interrupción a Twilio usando el StreamManager directamente
+    this.orchestrator.streamManager.sendInterruptionToTwilio(sessionId);
 
     // Crear mensaje estándar para limpiar buffer
     const clearMessage = {
@@ -165,6 +180,13 @@ export class ElevenLabsAdapter extends BaseAdapter {
     if (agentResponse) {
       console.log(`[ElevenLabsAdapter] Respuesta del agente: ${agentResponse}`, { sessionId });
 
+      // Limpiar cualquier audio anterior al recibir una nueva respuesta
+      // Esto asegura que no se superpongan respuestas
+      broadcastToSession(sessionId, {
+        type: "control",
+        action: "clear_buffer"
+      });
+
       // Enviar la transcripción directamente a los clientes conectados a la sesión
       broadcastToSession(sessionId, {
         type: "transcript",
@@ -186,6 +208,9 @@ export class ElevenLabsAdapter extends BaseAdapter {
 
     if (userTranscript) {
       console.log(`[ElevenLabsAdapter] Transcripción del usuario: ${userTranscript}`, { sessionId });
+
+      // Como es audio del usuario, puede que sea una interrupción
+      // No limpiamos el audio existente aquí, solo enviamos la transcripción
 
       // Enviar la transcripción directamente a los clientes conectados a la sesión
       broadcastToSession(sessionId, {

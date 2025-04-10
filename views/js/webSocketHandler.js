@@ -38,20 +38,37 @@ const WebSocketHandler = (() => {
       data = { type: "log", message: event.data };
     }
 
+    // Procesar eventos de interrupción primero para asegurar respuesta inmediata
+    if (data.type === "control" && data.action === "clear_buffer") {
+      console.log("[WebSocketHandler] Recibido evento de interrupción, limpiando buffer de audio");
+      // Detener solo el audio del bot para permitir que el usuario siga escuchando
+      AudioProcessor.stopAllBotAudio();
+      return;
+    }
+
+    // También detectar interrupciones en mensajes de texto
+    if (typeof data.message === 'string' && data.message.includes("Recibido evento de interrupción")) {
+      console.log("[WebSocketHandler] Detectada interrupción en log");
+      AudioProcessor.stopAllBotAudio();
+    }
+
     // Procesar según el tipo de mensaje
-    if (data.type === "audio") {
+    if (data.type === "audio" || data.messageType === "bot_audio") {
       // Usar messageId si disponible (para prevenir duplicados)
       const messageId = data.id || null;
-      if (data.payload) {
-        AudioProcessor.playBotAudioChunk(data.payload, messageId);
+      // Comprobar si el payload está en diferentes niveles de anidación
+      const payload = data.payload || data.audio?.chunk || data.audio_event?.audio_base_64;
+      if (payload) {
+        AudioProcessor.playBotAudioChunk(payload, messageId);
       }
       return;
     }
 
-    if (data.type === "client_audio") {
+    if (data.type === "client_audio" || data.messageType === "client_audio") {
       const messageId = data.id || null;
-      if (data.payload) {
-        AudioProcessor.playClientAudioChunk(data.payload, messageId);
+      const payload = data.payload?.user_audio_chunk || data.payload;
+      if (payload) {
+        AudioProcessor.playClientAudioChunk(payload, messageId);
       }
       return;
     }
@@ -59,8 +76,8 @@ const WebSocketHandler = (() => {
     // Procesar transcripciones estructuradas
     if (data.type === "transcript") {
       // Extraer texto y tipo
-      const text = data.text || "";
-      const isBot = Boolean(data.isBot);
+      const text = data.text || data.payload?.text || "";
+      const isBot = data.isBot !== undefined ? data.isBot : (data.payload?.isBot !== undefined ? data.payload.isBot : false);
 
       // Crear un hash simple para evitar duplicados
       const transcriptionHash = generateTranscriptionHash(text, isBot);
@@ -77,6 +94,11 @@ const WebSocketHandler = (() => {
         processedTranscriptions.delete(transcriptionHash);
       }, 3000);
 
+      // Si es una nueva respuesta del bot, limpiar el audio previo para evitar superposición
+      if (isBot) {
+        AudioProcessor.stopAllBotAudio();
+      }
+
       // Mostrar la transcripción
       UIController.addChatMessage(text, isBot);
       if (isBot) {
@@ -88,11 +110,6 @@ const WebSocketHandler = (() => {
     // Procesar logs regulares
     const log = data.message || event.data;
     UIController.addLog(log);
-
-    // Eventos de interrupción
-    if (log.includes("Recibido evento de interrupción")) {
-      AudioProcessor.clearAudioQueues();
-    }
   }
 
   // Conectar al WebSocket de logs

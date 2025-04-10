@@ -6,7 +6,7 @@ import { registerTwilioConnection } from "../../utils/sessionManager.js";
 
 // Variable para controlar la frecuencia de los logs
 let messageLogCounter = 0;
-const MESSAGE_LOG_FREQUENCY = 50; // Registrar solo 1 de cada 50 mensajes
+const MESSAGE_LOG_FREQUENCY = 200; // Aumentado: Registrar solo 1 de cada 200 mensajes
 
 /**
  * Configura el stream de medios para la comunicación entre Twilio y ElevenLabs
@@ -53,6 +53,7 @@ export const setupMediaStream = async (ws, sessionId) => {
       // Log reducido - solo para eventos específicos o con baja frecuencia
       messageLogCounter++;
       if (messageLogCounter % MESSAGE_LOG_FREQUENCY === 0 || msg.event !== 'media') {
+        // Se reduce aún más la frecuencia de los logs para evitar spam
         console.log("[Twilio] Evento:", msg.event, { sessionId });
       }
 
@@ -96,10 +97,11 @@ export const setupMediaStream = async (ws, sessionId) => {
             await orchestrator.elevenLabsProvider.initialize(state.customParameters, state.sessionId);
 
             // Verificación de depuración después de configuración
-            const hasTwilioConn = orchestrator.streamManager.connections.twilio.has(state.sessionId);
+            // Disminuir verbosidad de logs
+            /*const hasTwilioConn = orchestrator.streamManager.connections.twilio.has(state.sessionId);
             const hasElevenLabsConn = orchestrator.streamManager.connections.elevenlabs.has(state.sessionId);
             console.log(`[MediaStreamService] Estado de conexiones después de inicialización: Twilio (${hasTwilioConn}), ElevenLabs (${hasElevenLabsConn})`, 
-                      { sessionId: state.sessionId });
+                      { sessionId: state.sessionId });*/
           } catch (error) {
             console.error("[Orchestrator] Error inicializando ElevenLabs:", error, { sessionId: state.sessionId });
           }
@@ -112,13 +114,19 @@ export const setupMediaStream = async (ws, sessionId) => {
 
   // Manejar cierre de conexión
   ws.on("close", () => {
-    console.log("[Twilio] Cliente desconectado", { sessionId });
+    // Reducir este log para evitar spam
+    if (messageLogCounter % MESSAGE_LOG_FREQUENCY === 0) {
+      console.log("[Twilio] Cliente desconectado", { sessionId });
+    }
 
     // Finalizar la conexión de ElevenLabs a través del orquestador
     if (orchestrator.elevenLabsProvider.isActiveForSession(sessionId)) {
       orchestrator.elevenLabsProvider.terminate(sessionId);
     } else {
-      console.log("[MediaStreamService] No hay conexión ElevenLabs activa para finalizar", { sessionId });
+      // Este log también se muestra con menor frecuencia
+      if (messageLogCounter % MESSAGE_LOG_FREQUENCY === 0) {
+        console.log("[MediaStreamService] No hay conexión ElevenLabs activa para finalizar", { sessionId });
+      }
     }
   });
 };

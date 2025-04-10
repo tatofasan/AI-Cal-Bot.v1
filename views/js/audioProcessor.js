@@ -49,6 +49,29 @@ const AudioProcessor = (() => {
     return { samples, sampleRate: 8000 };
   }
 
+  // Detener todas las fuentes de audio del bot
+  function stopAllBotAudio() {
+    botAudioSources.forEach(source => { 
+      try { 
+        source.stop(); 
+        source.disconnect(); 
+      } catch(e) { 
+        console.error("Error deteniendo fuente de audio del bot:", e); 
+      } 
+    });
+
+    botAudioSources = [];
+
+    // Reiniciar el tiempo de audio del bot
+    if (audioContext) {
+      nextBotAudioTime = audioContext.currentTime;
+    } else {
+      nextBotAudioTime = 0;
+    }
+
+    console.log("Audio del bot interrumpido y cola limpiada");
+  }
+
   // Reproducción de audio
   function playBotAudioChunk(base64Data, messageId) {
     // Verificar si ya procesamos este audio (evitar duplicados)
@@ -136,6 +159,7 @@ const AudioProcessor = (() => {
 
   // Control de audio
   function clearAudioQueues() {
+    // Detener todas las fuentes de audio del bot
     botAudioSources.forEach(source => { 
       try { 
         source.stop(); 
@@ -144,6 +168,8 @@ const AudioProcessor = (() => {
         console.error("Error deteniendo fuente de audio:", e); 
       } 
     });
+
+    // Detener todas las fuentes de audio del cliente
     clientAudioSources.forEach(source => { 
       try { 
         source.stop(); 
@@ -203,6 +229,7 @@ const AudioProcessor = (() => {
     playBotAudioChunk,
     playClientAudioChunk,
     clearAudioQueues,
+    stopAllBotAudio,
     toggleMonitoring,
     isMonitoring: () => isMonitoring
   };
