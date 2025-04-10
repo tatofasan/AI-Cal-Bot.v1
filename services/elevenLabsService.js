@@ -1,7 +1,6 @@
 // src/services/elevenLabsService.js
 import WebSocket from "ws";
 import fetch from "node-fetch";
-import { amplifyAudio } from "../utils/audioAmplifier.js";  // <== NUEVO: Importar la función de amplificación
 
 // Configuración de ElevenLabs
 const ELEVENLABS_API_KEY =
@@ -279,14 +278,18 @@ export const setupMediaStream = async (ws) => {
         case "media":
           if (elevenLabsWs?.readyState === WebSocket.OPEN) {
             try {
-              // Aplicar amplificación al audio recibido antes de enviarlo a ElevenLabs
-              const amplifiedPayload = amplifyAudio(msg.media.payload, 2.0);
               const audioMessage = {
-                user_audio_chunk: amplifiedPayload,
+                user_audio_chunk: Buffer.from(
+                  msg.media.payload,
+                  "base64"
+                ).toString("base64"),
               };
               elevenLabsWs.send(JSON.stringify(audioMessage));
             } catch (error) {
-              console.error("[Twilio] Error enviando audio a ElevenLabs:", error);
+              console.error(
+                "[Twilio] Error enviando audio a ElevenLabs:",
+                error,
+              );
             }
           }
           // Reenviar el audio del cliente a los log clients para monitoreo

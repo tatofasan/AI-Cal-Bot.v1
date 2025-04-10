@@ -161,24 +161,10 @@
       nextClientAudioTime += audioBuffer.duration;
     }
 
-    // Función para detener todos los audios pendientes, desconectar y reiniciar tiempos
+    // Función para detener todos los audios pendientes y reiniciar tiempos
     function clearAudioQueues() {
-      botAudioSources.forEach(source => {
-        try {
-          source.stop();
-          source.disconnect();
-        } catch(e) {
-          console.error(e);
-        }
-      });
-      clientAudioSources.forEach(source => {
-        try {
-          source.stop();
-          source.disconnect();
-        } catch(e) {
-          console.error(e);
-        }
-      });
+      botAudioSources.forEach(source => { try { source.stop(); } catch(e) { console.error(e); } });
+      clientAudioSources.forEach(source => { try { source.stop(); } catch(e) { console.error(e); } });
       botAudioSources = [];
       clientAudioSources = [];
       nextBotAudioTime = audioContext.currentTime;
