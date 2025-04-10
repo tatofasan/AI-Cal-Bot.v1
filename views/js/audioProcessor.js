@@ -54,7 +54,7 @@ const AudioProcessor = (() => {
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
-      console.log("Audio ya procesado, evitando duplicado:", audioId);
+      console.log("Audio del bot ya procesado, evitando duplicado");
       return;
     }
     processedAudioIds.add(audioId);
@@ -96,7 +96,7 @@ const AudioProcessor = (() => {
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
-      console.log("Audio ya procesado, evitando duplicado:", audioId);
+      console.log("Audio del cliente ya procesado, evitando duplicado");
       return;
     }
     processedAudioIds.add(audioId);

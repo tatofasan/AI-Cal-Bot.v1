@@ -3,7 +3,8 @@ import { handleIndexRoute, handleJsFileRoute } from "./outbound/routeHandler.js"
 import { 
   initiateCall, 
   generateTwiML, 
-  endCall 
+  endCall,
+  changeVoiceProvider 
 } from "./outbound/callController.js";
 
 export default async function outboundCallRoutes(fastify, options) {
@@ -39,4 +40,7 @@ export default async function outboundCallRoutes(fastify, options) {
 
   // Ruta para cortar la llamada
   fastify.post("/end-call", endCall);
+
+  // Nueva ruta para cambiar el proveedor de voz
+  fastify.post("/change-voice-provider", changeVoiceProvider);
 }

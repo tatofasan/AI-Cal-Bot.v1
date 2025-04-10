@@ -1,5 +1,6 @@
 // src/routes/outbound/callController.js
 import { twilioCall, twilioClient, twiml } from "../../services/twilioService.js";
+import { orchestrator } from "../../services/orchestrator/index.js";
 
 /**
  * Inicia una llamada saliente a través de Twilio
@@ -35,7 +36,7 @@ export const initiateCall = async (request, reply) => {
   });
 
   try {
-    // Pasar el sessionId a la función de llamada
+    // Iniciar la llamada a través del orquestador
     const callParams = { 
       user_name, 
       to_number, 
@@ -43,12 +44,14 @@ export const initiateCall = async (request, reply) => {
       voice_name 
     };
 
-    // Si tenemos un sessionId, lo incluimos para el query string de TwiML
+    // Si tenemos un sessionId, lo incluimos
     if (sessionId) {
       callParams.sessionId = sessionId;
     }
 
-    const callResult = await twilioCall(callParams);
+    // Usar el TwilioProvider del orquestador para iniciar la llamada
+    const callResult = await orchestrator.twilioProvider.initialize(callParams, sessionId || callParams.sessionId);
+
     return reply.send(callResult);
   } catch (error) {
     console.error("[Outbound Call] Error:", error, sessionContext);
@@ -112,8 +115,20 @@ export const endCall = async (request, reply) => {
   const sessionContext = sessionId ? { sessionId } : {};
 
   try {
-    const call = await twilioClient.calls(callSid).update({ status: "completed" });
+    // Usar el TwilioProvider del orquestador para finalizar la llamada
+    let result;
+
+    if (sessionId) {
+      // Si tenemos sessionId, usamos el método del orquestador
+      result = await orchestrator.twilioProvider.terminate(sessionId);
+    } else {
+      // Si solo tenemos callSid, usamos el cliente de Twilio directamente
+      await twilioClient.calls(callSid).update({ status: "completed" });
+      result = true;
+    }
+
     console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`, sessionContext);
+
     return reply.send({
       success: true,
       message: `Call ${callSid} ended`,
@@ -123,6 +138,40 @@ export const endCall = async (request, reply) => {
     return reply.code(500).send({
       success: false,
       error: `Error ending call: ${error.message}`,
+    });
+  }
+};
+
+/**
+ * Cambia el proveedor de voz para una llamada activa
+ * @param {object} request - Objeto de solicitud Fastify
+ * @param {object} reply - Objeto de respuesta Fastify
+ */
+export const changeVoiceProvider = async (request, reply) => {
+  if (!request.body || !request.body.sessionId) {
+    return reply.code(400).send({
+      success: false,
+      error: "Se requiere sessionId",
+    });
+  }
+
+  const { sessionId, provider, voiceId } = request.body;
+
+  try {
+    // Cambiar la ruta para mensajes de audio
+    orchestrator.changeRoute('twilio', 'audio', provider);
+
+    return reply.send({
+      success: true,
+      message: `Proveedor de voz cambiado a ${provider}`,
+      sessionId,
+      provider
+    });
+  } catch (error) {
+    console.error(`[API] Error cambiando proveedor de voz:`, error, { sessionId });
+    return reply.code(500).send({
+      success: false,
+      error: `Error: ${error.message}`,
     });
   }
 };

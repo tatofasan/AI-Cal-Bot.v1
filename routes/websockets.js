@@ -1,12 +1,13 @@
 // src/routes/websockets.js
 import WebSocket from "ws";
-import { setupMediaStream } from "../services/elevenLabsService.js";
+import { setupMediaStream } from "../services/elevenlabs/mediaStreamService.js";
 import { logClients } from '../utils/logger.js';
 import { 
   registerLogClient, 
   removeLogClient, 
   getOrCreateSession
 } from '../utils/sessionManager.js';
+import { orchestrator } from "../services/orchestrator/index.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
@@ -36,8 +37,28 @@ export default function websocketsRoutes(fastify, options) {
     });
 
     ws.on("message", (message) => {
-      if (message.toString() === "heartbeat") {
-        ws.send("[HEARTBEAT] Conexión activa");
+      try {
+        const data = JSON.parse(message.toString());
+
+        // Si es un comando para el orquestador, procesarlo
+        if (data.command && data.command !== "heartbeat") {
+          orchestrator.handleFrontendCommand(
+            data.command,
+            data.params || {},
+            sessionId
+          );
+          return;
+        }
+
+        // Heartbeat estándar
+        if (message.toString() === "heartbeat" || data.command === "heartbeat") {
+          ws.send("[HEARTBEAT] Conexión activa");
+        }
+      } catch (e) {
+        // Si no es JSON o hay error, tratar como mensaje normal
+        if (message.toString() === "heartbeat") {
+          ws.send("[HEARTBEAT] Conexión activa");
+        }
       }
     });
 
@@ -81,7 +102,7 @@ export default function websocketsRoutes(fastify, options) {
     // Asociar sessionId con el WebSocket
     ws.sessionId = sessionId;
 
-    // Configurar el media stream con el sessionId
+    // Configurar el media stream con el sessionId utilizando el orquestrador
     setupMediaStream(ws, sessionId);
 
     // Manejar mensajes iniciales que podrían contener el sessionId
@@ -91,7 +112,9 @@ export default function websocketsRoutes(fastify, options) {
         if (data.sessionId && !ws.sessionId) {
           console.log("[Server] sessionId recibido en primer mensaje:", data.sessionId);
           ws.sessionId = data.sessionId;
-          // Reconfigurar el stream con el nuevo sessionId
+
+          // Notificar al orquestador del cambio de sessionId
+          orchestrator.streamManager.removeConnection(ws);
           setupMediaStream(ws, data.sessionId);
         }
         // Eliminar este handler después del primer mensaje

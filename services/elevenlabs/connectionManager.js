@@ -1,13 +1,10 @@
 // src/services/elevenlabs/connectionManager.js
-import WebSocket from "ws";
-import { getSignedUrl } from "./elevenLabsApi.js";
-import { selectVoice } from "./voiceManager.js";
-import { handleElevenLabsMessage, sendInitialConfig } from "./webSocketHandler.js";
-import { handleTwilioMessage, endTwilioCall } from "./twilioHandler.js";
+import { orchestrator } from "../orchestrator/index.js";
 import { registerElevenLabsConnection, removeElevenLabsConnection } from "../../utils/sessionManager.js";
 
 /**
  * Inicializa y configura la conexión WebSocket con ElevenLabs
+ * Ahora utiliza el orquestador como intermediario
  * @param {Object} state - Estado de la conexión (streamSid, callSid, customParameters)
  * @param {WebSocket} twilioWs - WebSocket de conexión con Twilio
  * @returns {Promise<WebSocket>} WebSocket configurado para ElevenLabs
@@ -16,57 +13,24 @@ export const setupElevenLabsConnection = async (state, twilioWs) => {
   try {
     console.log("[ElevenLabs] Iniciando conexión a ElevenLabs", 
       { sessionId: state.sessionId });
-    const signedUrl = await getSignedUrl();
 
-    const elevenLabsWs = new WebSocket(signedUrl);
+    // Inicializar ElevenLabs a través del orquestador
+    const result = await orchestrator.elevenLabsProvider.initialize(
+      state.customParameters, 
+      state.sessionId
+    );
 
-    // Almacenar sessionId en el WebSocket para poder accederlo en eventos
-    elevenLabsWs.sessionId = state.sessionId;
+    // Recuperar el WebSocket desde las conexiones gestionadas por el orquestador
+    const elevenLabsWs = orchestrator.streamManager.connections.elevenlabs.get(state.sessionId);
 
-    // Manejar apertura de conexión
-    elevenLabsWs.on("open", () => {
-      console.log("[ElevenLabs] WebSocket conectado a ElevenLabs", 
-        { sessionId: state.sessionId });
+    if (!elevenLabsWs) {
+      throw new Error("No se pudo establecer la conexión con ElevenLabs");
+    }
 
-      if (state.customParameters?.voice_id === "random") {
-        const selectedVoice = selectVoice("random");
-        state.customParameters.voice_id = selectedVoice.id;
-        state.customParameters.voice_name = selectedVoice.name;
-      }
-
-      // Registrar la conexión en el gestor de sesiones cuando esté abierta
-      if (state.callSid) {
-        registerElevenLabsConnection(state.sessionId, elevenLabsWs, state.callSid);
-      }
-
-      // Enviar configuración inicial a ElevenLabs
-      sendInitialConfig(elevenLabsWs, state.customParameters);
-    });
-
-    // Manejar mensajes recibidos
-    elevenLabsWs.on("message", (data) => {
-      const message = JSON.parse(data);
-      handleElevenLabsMessage(elevenLabsWs, twilioWs, state, message);
-    });
-
-    // Manejar errores
-    elevenLabsWs.on("error", (error) => {
-      console.error("[ElevenLabs] Error en WebSocket:", error, 
-        { sessionId: state.sessionId });
-    });
-
-    // Manejar cierre de conexión
-    elevenLabsWs.on("close", async (code, reason) => {
-      console.log(
-        `[ElevenLabs] WebSocket cerrado. Código: ${code}, Razón: ${reason || "No especificada"}`,
-        { sessionId: state.sessionId }
-      );
-
-      // Eliminar la conexión del gestor de sesiones
-      removeElevenLabsConnection(elevenLabsWs);
-
-      await endTwilioCall(state.callSid);
-    });
+    // Registrar la conexión en el gestor de sesiones si está disponible
+    if (state.callSid) {
+      registerElevenLabsConnection(state.sessionId, elevenLabsWs, state.callSid);
+    }
 
     return elevenLabsWs;
   } catch (error) {
@@ -81,9 +45,19 @@ export const setupElevenLabsConnection = async (state, twilioWs) => {
  * @param {WebSocket} elevenLabsWs - WebSocket de conexión con ElevenLabs
  */
 export const closeElevenLabsConnection = (elevenLabsWs) => {
-  if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+  if (elevenLabsWs) {
     const sessionId = elevenLabsWs.sessionId;
     console.log("[ElevenLabs] Cerrando conexión", { sessionId });
-    elevenLabsWs.close();
+
+    // Utilizar el orquestador para terminar la conexión
+    if (sessionId) {
+      orchestrator.elevenLabsProvider.terminate(sessionId);
+    } else {
+      // Fallback para cerrar directamente si no hay sessionId
+      elevenLabsWs.close();
+    }
+
+    // Eliminar del gestor de sesiones
+    removeElevenLabsConnection(elevenLabsWs);
   }
 };

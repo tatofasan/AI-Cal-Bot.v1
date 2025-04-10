@@ -94,6 +94,19 @@ const UIController = (() => {
     setTimeout(() => { elements.logs.scrollTop = elements.logs.scrollHeight; }, 10);
   }
 
+  // Procesar mensaje de transcripción
+  function processTranscription(data) {
+    if (!data || (!data.text && !data.payload?.text)) {
+      return;
+    }
+
+    const text = data.text || data.payload.text;
+    const isBot = data.isBot === undefined ? 
+      (data.payload?.isBot || false) : data.isBot;
+
+    addChatMessage(text, isBot);
+  }
+
   // Obtener datos del formulario para iniciar llamada
   function getCallFormData() {
     const voiceSelect = elements.voiceSelected;
@@ -125,6 +138,7 @@ const UIController = (() => {
     addChatMessage,
     clearChat,
     addLog,
+    processTranscription,
     getCallFormData,
     setCurrentCallSid,
     getCurrentCallSid

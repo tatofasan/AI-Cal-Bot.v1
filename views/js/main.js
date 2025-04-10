@@ -44,8 +44,11 @@ async function startNewCall() {
     // Obtener datos del formulario
     const callData = UIController.getCallFormData();
 
-    // Log de depuración para verificar que voice_name está correctamente incluido
-    console.log("Enviando datos de llamada:", callData);
+    // Asegurarnos de que el monitoreo esté activado al iniciar la llamada
+    if (!AudioProcessor.isMonitoring()) {
+      AudioProcessor.toggleMonitoring();
+      UIController.updateMonitorIcon(true);
+    }
 
     // Llamar a la API
     const result = await ApiService.initiateCall(callData);
@@ -83,55 +86,6 @@ async function endCurrentCall() {
 // Configurar la conexión WebSocket
 function setupWebSocket() {
   WebSocketHandler.connectToLogsWebSocket(
-    // Callback onMessage
-    function(event) {
-      let data;
-      try {
-        data = JSON.parse(event.data);
-      }
-      catch (e) {
-        data = { type: "log", message: event.data };
-      }
-
-      // Procesar según el tipo de mensaje
-      if (data.type === "audio") {
-        // Usar messageId si disponible (para prevenir duplicados)
-        const messageId = data.id || null;
-        if (data.payload) {
-          AudioProcessor.playBotAudioChunk(data.payload, messageId);
-        }
-        return;
-      }
-
-      if (data.type === "client_audio") {
-        const messageId = data.id || null;
-        if (data.payload) {
-          AudioProcessor.playClientAudioChunk(data.payload, messageId);
-        }
-        return;
-      }
-
-      // Procesar logs y transcripciones
-      const log = data.message || event.data;
-      console.log("Log recibido:", log);
-
-      if (log.includes("Recibido evento de interrupción")) {
-        AudioProcessor.clearAudioQueues();
-      }
-
-      UIController.addLog(log);
-
-      // Manejar transcripciones para el chat
-      if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
-        const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
-        UIController.addChatMessage(messageText, true);
-        UIController.updateConnectionStatus(true);
-      } else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
-        const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
-        UIController.addChatMessage(messageText, false);
-      }
-    },
-
     // Callback onOpen
     function() {
       UIController.addLog('[INFO] Conexión a logs establecida\n');

@@ -1,12 +1,8 @@
 // src/services/elevenlabs/mediaStreamService.js
 import WebSocket from "ws";
-import { setupElevenLabsConnection, closeElevenLabsConnection } from "./connectionManager.js";
-import { handleTwilioMessage } from "./twilioHandler.js";
-import { 
-  registerTwilioConnection, 
-  removeTwilioConnection,
-  getSession
-} from "../../utils/sessionManager.js";
+import { orchestrator } from "../orchestrator/index.js";
+import { broadcastToSession } from "../../utils/sessionManager.js";
+import { registerTwilioConnection } from "../../utils/sessionManager.js";
 
 // Variable para controlar la frecuencia de los logs
 let messageLogCounter = 0;
@@ -30,9 +26,6 @@ export const setupMediaStream = async (ws, sessionId) => {
     { sessionId }
   );
 
-  // Registrar la conexión de Twilio en el gestor de sesiones
-  registerTwilioConnection(sessionId, ws);
-
   // Variables para mantener el estado
   const state = {
     streamSid: null,
@@ -41,7 +34,11 @@ export const setupMediaStream = async (ws, sessionId) => {
     sessionId: sessionId // Agregar sessionId al estado
   };
 
-  let elevenLabsWs = null;
+  // Registrar la conexión de Twilio en el gestor de sesiones
+  registerTwilioConnection(sessionId, ws);
+
+  // Registrar la conexión de Twilio en el orquestador
+  orchestrator.registerTwilioWebSocket(ws, sessionId, state);
 
   // Manejador de errores
   ws.on("error", (error) => {
@@ -72,25 +69,40 @@ export const setupMediaStream = async (ws, sessionId) => {
           state.sessionId = newSessionId;
           ws.sessionId = newSessionId;
 
-          // Re-registrar la conexión con el nuevo sessionId
-          removeTwilioConnection(ws);
-          registerTwilioConnection(newSessionId, ws);
-
           // Actualizar la referencia para logs futuros
           sessionId = newSessionId;
+
+          // Re-registrar la conexión con el nuevo sessionId
+          orchestrator.streamManager.removeConnection(ws);
+          orchestrator.registerTwilioWebSocket(ws, newSessionId, state);
         }
       }
 
-      // Usar la función de manejo de mensajes de Twilio
-      handleTwilioMessage(
+      // Usar el orquestador para manejar mensajes de Twilio
+      orchestrator.handleTwilioMessage(
         msg, 
-        ws, 
-        elevenLabsWs, 
         state, 
         // Callback para iniciar ElevenLabs después de recibir parámetros
         async () => {
-          // Iniciar ElevenLabs solo después de recibir los parámetros
-          elevenLabsWs = await setupElevenLabsConnection(state, ws);
+          try {
+            // Verificamos que la conexión Twilio siga registrada correctamente
+            if (!orchestrator.streamManager.connections.twilio.has(state.sessionId)) {
+              console.log("[MediaStreamService] Re-registrando conexión Twilio antes de iniciar ElevenLabs", 
+                        { sessionId: state.sessionId });
+              orchestrator.registerTwilioWebSocket(ws, state.sessionId, state);
+            }
+
+            // Iniciar ElevenLabs a través del orquestador
+            await orchestrator.elevenLabsProvider.initialize(state.customParameters, state.sessionId);
+
+            // Verificación de depuración después de configuración
+            const hasTwilioConn = orchestrator.streamManager.connections.twilio.has(state.sessionId);
+            const hasElevenLabsConn = orchestrator.streamManager.connections.elevenlabs.has(state.sessionId);
+            console.log(`[MediaStreamService] Estado de conexiones después de inicialización: Twilio (${hasTwilioConn}), ElevenLabs (${hasElevenLabsConn})`, 
+                      { sessionId: state.sessionId });
+          } catch (error) {
+            console.error("[Orchestrator] Error inicializando ElevenLabs:", error, { sessionId: state.sessionId });
+          }
         }
       );
     } catch (error) {
@@ -101,7 +113,12 @@ export const setupMediaStream = async (ws, sessionId) => {
   // Manejar cierre de conexión
   ws.on("close", () => {
     console.log("[Twilio] Cliente desconectado", { sessionId });
-    closeElevenLabsConnection(elevenLabsWs);
-    removeTwilioConnection(ws);
+
+    // Finalizar la conexión de ElevenLabs a través del orquestador
+    if (orchestrator.elevenLabsProvider.isActiveForSession(sessionId)) {
+      orchestrator.elevenLabsProvider.terminate(sessionId);
+    } else {
+      console.log("[MediaStreamService] No hay conexión ElevenLabs activa para finalizar", { sessionId });
+    }
   });
 };
