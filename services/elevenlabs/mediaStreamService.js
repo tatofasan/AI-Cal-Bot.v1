@@ -8,6 +8,10 @@ import {
   getSession
 } from "../../utils/sessionManager.js";
 
+// Variable para controlar la frecuencia de los logs
+let messageLogCounter = 0;
+const MESSAGE_LOG_FREQUENCY = 50; // Registrar solo 1 de cada 50 mensajes
+
 /**
  * Configura el stream de medios para la comunicación entre Twilio y ElevenLabs
  * @param {WebSocket} ws - WebSocket de conexión con Twilio
@@ -49,14 +53,14 @@ export const setupMediaStream = async (ws, sessionId) => {
     try {
       const msg = JSON.parse(message);
 
-      // Debug: Log completo del mensaje recibido para diagnóstico
-      console.log("[Twilio] Mensaje recibido:", 
-                 { type: msg.event, hasSessionId: msg.sessionId ? 'sí' : 'no', sessionId });
+      // Log reducido - solo para eventos específicos o con baja frecuencia
+      messageLogCounter++;
+      if (messageLogCounter % MESSAGE_LOG_FREQUENCY === 0 || msg.event !== 'media') {
+        console.log("[Twilio] Evento:", msg.event, { sessionId });
+      }
 
       // Si tenemos un evento 'start', verificar los parámetros personalizados para el sessionId
       if (msg.event === 'start' && msg.start && msg.start.customParameters) {
-        console.log("[Twilio] Parámetros personalizados:", msg.start.customParameters);
-
         // Si hay un sessionId en los parámetros personalizados y no coincide con el actual,
         // actualizar el sessionId
         if (msg.start.customParameters.sessionId && 

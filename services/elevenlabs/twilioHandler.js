@@ -1,8 +1,12 @@
 // src/services/elevenlabs/twilioHandler.js
 import WebSocket from "ws";
-import { amplifyAudio } from "../../utils/audioAmplifier.js";
+import { amplifyAudio, processAudioForSpeechRecognition } from "../../utils/audioProcessor.js";
 import { twilioClient } from "../twilioService.js";
 import { broadcastToSession, getSession } from "../../utils/sessionManager.js";
+
+// Variable para controlar la frecuencia de los logs
+let mediaLogCounter = 0;
+const MEDIA_LOG_FREQUENCY = 50; // Loguear solo 1 de cada 50 mensajes de media
 
 /**
  * Maneja los mensajes recibidos desde el WebSocket de Twilio
@@ -65,32 +69,42 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
  * @param {string} sessionId - ID de la sesión
  */
 async function handleMediaMessage(msg, elevenLabsWs, sessionId) {
+  // Incrementar contador para logging reducido
+  mediaLogCounter++;
+  const shouldLog = (mediaLogCounter % MEDIA_LOG_FREQUENCY === 0);
+
   if (elevenLabsWs?.readyState === WebSocket.OPEN) {
     try {
-      // Amplificar el audio antes de enviarlo a ElevenLabs
-      const gainFactor = 2.0; // Factor de amplificación
-      const amplifiedPayload = amplifyAudio(msg.media.payload, gainFactor);
+      // Procesar el audio para mejorar la transcripción
+      const processedPayload = processAudioForSpeechRecognition(msg.media.payload);
+
       const audioMessage = {
-        user_audio_chunk: Buffer.from(amplifiedPayload, "base64").toString("base64"),
+        user_audio_chunk: Buffer.from(processedPayload, "base64").toString("base64"),
       };
+
       elevenLabsWs.send(JSON.stringify(audioMessage));
+
+      // Log reducido para monitoreo
+      if (shouldLog) {
+        console.log("[AudioProcessor] Audio procesado y enviado a ElevenLabs", { sessionId });
+      }
     } catch (error) {
       console.error(
-        "[Twilio] Error al amplificar o enviar audio a ElevenLabs:",
+        "[Twilio] Error al procesar audio:",
         error,
         { sessionId }
       );
-      // Si ocurre un error en la amplificación, intentamos enviar el audio original
+      // Si ocurre un error en el procesamiento, intentamos enviar el audio original
       try {
         const originalAudioMessage = {
           user_audio_chunk: Buffer.from(msg.media.payload, "base64").toString("base64"),
         };
         elevenLabsWs.send(JSON.stringify(originalAudioMessage));
-        console.log("[AudioAmplifier] Fallback: Audio original enviado sin amplificar", 
-          { sessionId });
+        if (shouldLog) {
+          console.log("[AudioProcessor] Fallback: Audio original enviado", { sessionId });
+        }
       } catch (fallbackError) {
-        console.error("[Twilio] Error en fallback de audio:", fallbackError, 
-          { sessionId });
+        console.error("[Twilio] Error en fallback de audio:", fallbackError, { sessionId });
       }
     }
   }
