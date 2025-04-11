@@ -1,6 +1,7 @@
 // src/services/speechService.js
 import WebSocket from "ws";
 import { getSession, broadcastToSession } from "../utils/sessionManager.js";
+import { amplifyAudio } from "../utils/audioProcessor.js"; // Importar la función de amplificación
 
 /**
  * Procesa el audio enviado por el agente y lo reenvía directamente a Twilio
@@ -69,6 +70,13 @@ export async function processAgentAudio(sessionId, data) {
       }
     }
 
+    // Amplificar el audio del agente antes de enviarlo a Twilio (solo audio no silencioso)
+    let payloadToSend = data.payload;
+    if (!isSilence) {
+      // Usar un factor de amplificación de 1.5 para aumentar el volumen
+      payloadToSend = amplifyAudio(data.payload, 1.5);
+    }
+
     // CRÍTICO: El formato del mensaje debe coincidir EXACTAMENTE con lo que espera Twilio
     // Twilio Media Streams espera recibir un mensaje con esta estructura exacta:
     // { event: "media", streamSid: "XX...", media: { payload: "base64data" } }
@@ -76,7 +84,7 @@ export async function processAgentAudio(sessionId, data) {
       event: "media",
       streamSid: session.twilioWs.streamSid,
       media: {
-        payload: data.payload
+        payload: payloadToSend
       }
     };
 
@@ -93,7 +101,7 @@ export async function processAgentAudio(sessionId, data) {
       broadcastToSession(sessionId, {
         type: "agent_audio",
         id: audioId,
-        payload: data.payload
+        payload: payloadToSend
       });
     }
 
