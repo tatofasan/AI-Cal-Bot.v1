@@ -2,9 +2,8 @@
 import fetch from "node-fetch";
 
 // Configuración de ElevenLabs
-const ELEVENLABS_API_KEY =
-  "sk_6699a2f7d7c3982f82de20478e62ed188263055e53c25a88";
-const ELEVENLABS_AGENT_ID = "KmPa2LWqjFasERSKkFsg";
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 
 /**
  * Obtiene una URL firmada para conectarse a la API de ElevenLabs
