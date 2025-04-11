@@ -100,10 +100,6 @@ async function handleMediaMessage(msg, elevenLabsWs, sessionId) {
 
       elevenLabsWs.send(JSON.stringify(audioMessage));
 
-      // Log reducido para monitoreo
-      if (shouldLog) {
-        console.log("[AudioProcessor] Audio procesado y enviado a ElevenLabs", { sessionId });
-      }
     } catch (error) {
       console.error(
         "[Twilio] Error al procesar audio:",
