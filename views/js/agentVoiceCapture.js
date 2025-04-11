@@ -4,6 +4,7 @@ const AgentVoiceCapture = (() => {
   let mediaRecorder = null;
   let mediaStream = null;
   let audioContext = null;
+  let sourceNode = null;
   let audioProcessor = null;
   let websocket = null;
   let isCapturing = false;
@@ -35,7 +36,8 @@ const AgentVoiceCapture = (() => {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true
+            autoGainControl: true,
+            channelCount: 1 // Mono es importante para compatibilidad con telefonía
           } 
         });
       } catch (micError) {
@@ -47,9 +49,6 @@ const AgentVoiceCapture = (() => {
 
       // Configurar AudioContext 
       try {
-        // Crear AudioContext con frecuencia de muestreo preferida de 8000Hz
-        // Nota: Muchos navegadores no soportan 8000Hz directamente, 
-        // así que se realizará un remuestreo si es necesario
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         console.log("[AgentVoice] AudioContext creado con sampleRate:", audioContext.sampleRate);
       } catch (audioCtxError) {
@@ -60,9 +59,6 @@ const AgentVoiceCapture = (() => {
         isConnecting = false;
         return false;
       }
-
-      // Crear source desde el stream
-      const source = audioContext.createMediaStreamSource(mediaStream);
 
       // Conectar al WebSocket para enviar audio
       try {
@@ -76,15 +72,26 @@ const AgentVoiceCapture = (() => {
         websocket.onopen = () => {
           console.log("[AgentVoice] Conexión WebSocket establecida");
 
-          // Configurar procesador solo después de establecer conexión
-          setupAudioProcessor(source, sessionId);
-
           // Enviar mensaje inicial
           websocket.send(JSON.stringify({
             type: 'agent_connect',
             sessionId: sessionId,
             message: 'Agente conectado y listo para enviar audio'
           }));
+
+          // Interrumpir cualquier reproducción del bot
+          websocket.send(JSON.stringify({
+            type: 'interrupt_bot',
+            sessionId: sessionId
+          }));
+
+          // También enviar un evento al frontend para detener cualquier reproducción
+          if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+            window.AudioProcessor.clearAudioQueues();
+          }
+
+          // Configurar procesador de audio después de establecer la conexión
+          setupAudioCapture(sessionId);
 
           isCapturing = true;
           isConnecting = false;
@@ -125,34 +132,14 @@ const AgentVoiceCapture = (() => {
             }
 
             // Limpiar recursos
-            if (mediaStream) {
-              mediaStream.getTracks().forEach(track => track.stop());
-              mediaStream = null;
-            }
-
-            if (audioContext) {
-              audioContext.close().catch(() => {});
-              audioContext = null;
-            }
-
+            cleanupAudioResources();
             alert("No se pudo establecer conexión con el servidor. Intente nuevamente.");
           }
         }, 5000);
 
       } catch (wsError) {
         console.error("[AgentVoice] Error creando WebSocket:", wsError);
-
-        // Limpiar recursos en caso de error
-        if (mediaStream) {
-          mediaStream.getTracks().forEach(track => track.stop());
-          mediaStream = null;
-        }
-
-        if (audioContext) {
-          audioContext.close().catch(() => {});
-          audioContext = null;
-        }
-
+        cleanupAudioResources();
         isConnecting = false;
         return false;
       }
@@ -161,96 +148,218 @@ const AgentVoiceCapture = (() => {
     } catch (error) {
       console.error("[AgentVoice] Error general iniciando captura de voz:", error);
       isConnecting = false;
-
-      // Limpiar recursos en caso de error general
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        mediaStream = null;
-      }
-
-      if (audioContext) {
-        audioContext.close().catch(() => {});
-        audioContext = null;
-      }
-
+      cleanupAudioResources();
       return false;
     }
   }
 
-  // Configurar procesador de audio
-  function setupAudioProcessor(source, sessionId) {
-    // Usar un procesador de script para procesar el audio
-    const bufferSize = 4096;
-    audioProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+  // Configurar captura y procesamiento de audio
+  function setupAudioCapture(sessionId) {
+    try {
+      // Crear source node del micrófono
+      sourceNode = audioContext.createMediaStreamSource(mediaStream);
 
-    source.connect(audioProcessor);
-    audioProcessor.connect(audioContext.destination);
+      // Obtener detalles del audio para logs
+      const inputSampleRate = audioContext.sampleRate;
+      console.log("[AgentVoice] Configurando captura de audio con sampleRate:", inputSampleRate);
 
-    // Procesar audio y enviarlo cuando está disponible
-    let consecutiveSilentChunks = 0;
-    let isAudioSending = false;
+      // Crear ScriptProcessor para manejar el audio
+      // NOTA: ScriptProcessor está obsoleto pero es más compatible para este caso
+      // que AudioWorklet, especialmente para la conversión µ-law
+      const bufferSize = 4096;
+      audioProcessor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
-    audioProcessor.onaudioprocess = (e) => {
-      if (!isCapturing || !websocket || websocket.readyState !== WebSocket.OPEN) {
-        return;
-      }
+      // Aplicar ganancia para mejorar el volumen
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 1.5; // Aumentar volumen moderadamente
 
-      // Evitar enviar múltiples fragmentos simultáneamente
-      if (isAudioSending) {
-        return;
-      }
+      // Conectar la cadena de audio
+      sourceNode.connect(gainNode);
+      gainNode.connect(audioProcessor);
+      audioProcessor.connect(audioContext.destination);
 
-      isAudioSending = true;
+      // Crear un buffer de muestras PCM para el resampler
+      let accumulatedSamples = [];
+      let lastProcessTime = Date.now();
 
-      try {
-        const inputData = e.inputBuffer.getChannelData(0);
-
-        // Verificar actividad de voz
-        const energy = calculateEnergy(inputData);
-        const isVoiceActive = energy > 0.001; // Umbral ajustado para mejor detección
-
-        if (isVoiceActive) {
-          console.log("[AgentVoice] Enviando audio con energía:", energy.toFixed(5));
-          // Se detectó voz, enviar audio
-          consecutiveSilentChunks = 0;
-
-          // Convertir de Float32Array a formato μ-law (8bits, 8kHz)
-          const audioBuffer = convertFloat32ToMulaw(inputData);
-
-          websocket.send(JSON.stringify({
-            type: 'agent_audio',
-            format: 'mulaw',  // Formato μ-law que Twilio espera
-            sampleRate: 8000, // Frecuencia fija para telefonía
-            payload: arrayBufferToBase64(audioBuffer),
-            sessionId: sessionId,
-            is_silence: false
-          }));
-        } else {
-          // No se detectó voz, incrementar contador de silencio
-          consecutiveSilentChunks++;
-
-          // Enviar solo hasta 2 fragmentos de silencio consecutivos
-          if (consecutiveSilentChunks < 2) {
-            // Crear buffer de silencio para μ-law
-            const silenceBuffer = new Uint8Array(bufferSize / 2); // 1 byte por muestra
-            silenceBuffer.fill(255); // Valor μ-law para silencio
-
-            websocket.send(JSON.stringify({
-              type: 'agent_audio',
-              format: 'mulaw',
-              sampleRate: 8000,
-              payload: arrayBufferToBase64(silenceBuffer.buffer),
-              sessionId: sessionId,
-              is_silence: true
-            }));
-          }
+      // Procesar el audio capturado
+      audioProcessor.onaudioprocess = (e) => {
+        if (!isCapturing || !websocket || websocket.readyState !== WebSocket.OPEN) {
+          return;
         }
-      } catch (error) {
-        console.error("[AgentVoice] Error procesando audio:", error);
-      } finally {
-        isAudioSending = false;
+
+        try {
+          // Capturar el audio del buffer de entrada
+          const inputBuffer = e.inputBuffer;
+          const inputData = inputBuffer.getChannelData(0);
+
+          // Acumular muestras
+          accumulatedSamples.push(...Array.from(inputData));
+
+          // Procesar periódicamente para reducir el overhead
+          const currentTime = Date.now();
+          if (currentTime - lastProcessTime >= 50) { // Procesar cada 50ms
+            lastProcessTime = currentTime;
+
+            if (accumulatedSamples.length > 0) {
+              // Resamplear a 8kHz
+              const samplesAt8k = resampleTo8k(accumulatedSamples, inputSampleRate);
+
+              // Convertir a µ-law
+              const mulawData = encodeToMulaw(samplesAt8k);
+
+              // Enviar al servidor
+              sendAudioData(mulawData, sessionId);
+
+              // Limpiar el buffer acumulado
+              accumulatedSamples = [];
+            }
+          }
+        } catch (error) {
+          console.error("[AgentVoice] Error procesando audio:", error);
+        }
+      };
+    } catch (error) {
+      console.error("[AgentVoice] Error configurando procesamiento de audio:", error);
+      cleanupAudioResources();
+    }
+  }
+
+  // Función para resamplear audio a 8kHz
+  function resampleTo8k(samples, originalSampleRate) {
+    const targetSampleRate = 8000;
+    const ratio = originalSampleRate / targetSampleRate;
+    const outputLength = Math.floor(samples.length / ratio);
+    const result = new Float32Array(outputLength);
+
+    // Algoritmo de resampleo simple: decimación con filtro anti-aliasing básico
+    for (let i = 0; i < outputLength; i++) {
+      const inputIndex = Math.floor(i * ratio);
+
+      // Aplicar un promedio simple para un filtro anti-aliasing básico
+      if (inputIndex < samples.length - 4) {
+        // Promedio de 5 muestras para suavizar
+        result[i] = (samples[inputIndex] + 
+                      samples[inputIndex + 1] + 
+                      samples[inputIndex + 2] + 
+                      samples[inputIndex + 3] + 
+                      samples[inputIndex + 4]) / 5;
+      } else {
+        result[i] = samples[Math.min(inputIndex, samples.length - 1)];
       }
+    }
+
+    return result;
+  }
+
+  // Tabla de búsqueda para codificación µ-law
+  const MULAW_ENCODE_TABLE = new Uint8Array(256);
+
+  // Inicializar tabla de µ-law
+  (function initMuLawTable() {
+    for (let i = 0; i < 256; i++) {
+      // A diferencia del algoritmo tradicional, invertimos los bits para compatibilidad con Twilio
+      MULAW_ENCODE_TABLE[i] = 255 - i;
+    }
+  })();
+
+  // Función para codificar PCM a µ-law
+  function encodeToMulaw(samples) {
+    const BIAS = 33;
+    const MAX = 0x7FFF;
+    const result = new Uint8Array(samples.length);
+
+    for (let i = 0; i < samples.length; i++) {
+      // Convertir de float [-1, 1] a PCM de 16 bits
+      let sample = Math.floor(samples[i] * MAX);
+
+      // Determinar signo y computar valor absoluto
+      const sign = (sample < 0) ? 0x80 : 0;
+      sample = Math.abs(sample);
+
+      // Aplicar bias logarítmico
+      sample += BIAS;
+
+      // Clip para prevenir overflow
+      if (sample > MAX) {
+        sample = MAX;
+      }
+
+      // Compresión logarítmica - Encuentra el segmento exponencial
+      let segment = 0;
+      if (sample > 0x7F) { // > 127
+        let temp = sample;
+        segment = 0;
+        while (temp > 0xFF) { // > 255
+          temp >>= 1;
+          segment++;
+        }
+      }
+
+      // Codificar en µ-law
+      let ulawByte;
+      if (segment >= 8) {
+        ulawByte = 0x7F ^ sign;
+      } else {
+        const mask = (0xFF >> (segment + 1)) & 0x7F;
+        const quantized = (sample >> (segment + 3)) & mask;
+        ulawByte = ((segment << 4) | quantized) ^ sign;
+      }
+
+      // Invertir los bits para compatibilidad con Twilio
+      result[i] = 255 - ulawByte;
+    }
+
+    return result;
+  }
+
+  // Enviar datos de audio procesados al servidor
+  function sendAudioData(mulawData, sessionId) {
+    if (!isCapturing || !websocket || websocket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Detectar si el buffer contiene voz o silencio
+    const hasVoice = detectVoiceActivity(mulawData);
+
+    // Convertir a base64 para enviar por WebSocket
+    const base64Data = arrayBufferToBase64(mulawData.buffer);
+
+    // Enviar al servidor
+    const message = {
+      type: 'agent_audio',
+      format: 'mulaw',
+      sampleRate: 8000,
+      payload: base64Data,
+      sessionId: sessionId,
+      is_silence: !hasVoice
     };
+
+    websocket.send(JSON.stringify(message));
+
+    // Log ocasional para monitoreo
+    if (Math.random() < 0.05) { // Log aproximadamente 5% de los frames
+      console.log(`[AgentVoice] Enviando audio al servidor. Tamaño: ${mulawData.length}, Voz detectada: ${hasVoice}`);
+    }
+  }
+
+  // Detector básico de actividad de voz
+  function detectVoiceActivity(mulawData) {
+    // Contar muestras que no son silencio
+    // En µ-law, 0xFF (255) es silencio y valores cercanos a 0x7F (127) son más ruidosos
+    let nonSilentSamples = 0;
+
+    // Umbral para considerar una muestra como no-silencio
+    const nonSilenceThreshold = 225; // 0xFF - 30
+
+    for (let i = 0; i < mulawData.length; i++) {
+      if (mulawData[i] < nonSilenceThreshold) {
+        nonSilentSamples++;
+      }
+    }
+
+    // Si más del 5% de las muestras no son silencio, consideramos que hay voz
+    return (nonSilentSamples / mulawData.length) > 0.05;
   }
 
   // Intento de reconexión
@@ -286,30 +395,7 @@ const AgentVoiceCapture = (() => {
     isConnecting = false;
 
     clearTimeout(reconnectTimeout);
-
-    // Detener y limpiar procesador de audio
-    if (audioProcessor) {
-      try {
-        audioProcessor.disconnect();
-      } catch (e) {}
-      audioProcessor = null;
-    }
-
-    // Cerrar contexto de audio
-    if (audioContext) {
-      try {
-        audioContext.close();
-      } catch (e) {}
-      audioContext = null;
-    }
-
-    // Detener y liberar streams de medios
-    if (mediaStream) {
-      try {
-        mediaStream.getTracks().forEach(track => track.stop());
-      } catch (e) {}
-      mediaStream = null;
-    }
+    cleanupAudioResources();
 
     // Cerrar WebSocket enviando mensaje primero
     if (websocket) {
@@ -329,70 +415,50 @@ const AgentVoiceCapture = (() => {
     console.log("[AgentVoice] Captura de voz detenida");
   }
 
-  // Calcular la energía de la señal de audio
-  function calculateEnergy(samples) {
-    let sum = 0;
-    for (let i = 0; i < samples.length; i++) {
-      sum += samples[i] * samples[i];
-    }
-    return sum / samples.length;
-  }
-
-  // Convertir Float32Array a μ-law (8-bit, 8kHz)
-  function convertFloat32ToMulaw(float32Array) {
-    // Convertir a μ-law, 1 byte por muestra
-    const mulawData = new Uint8Array(float32Array.length);
-
-    for (let i = 0; i < float32Array.length; i++) {
-      // Convertir de Float32 [-1,1] a μ-law [0,255]
-      mulawData[i] = linearToMulaw(float32Array[i]);
+  // Limpiar recursos de audio
+  function cleanupAudioResources() {
+    // Detener y limpiar procesador de audio
+    if (audioProcessor) {
+      try {
+        audioProcessor.disconnect();
+      } catch (e) {}
+      audioProcessor = null;
     }
 
-    return mulawData.buffer;
-  }
-
-  // Implementación del algoritmo μ-law
-  function linearToMulaw(sample) {
-    // Constantes para la codificación μ-law
-    const BIAS = 33;
-    const CLIP = 32635;
-
-    // Escalar la muestra al rango PCM de 16 bits
-    sample = sample * 32768.0;
-
-    // Determinar el signo y trabajar con valor absoluto
-    const sign = (sample < 0) ? 0x80 : 0;
-    if (sample < 0) sample = -sample;
-
-    // Aplicar clipping para prevenir overflow
-    if (sample > CLIP) sample = CLIP;
-
-    // Agregar bias
-    sample = sample + BIAS;
-
-    // Calcular el exponente y la mantisa
-    let exponent = 7;
-    for (let i = 0x4000; i > 0; i >>= 1, exponent--) {
-      if (sample >= i) break;
+    // Limpiar source node
+    if (sourceNode) {
+      try {
+        sourceNode.disconnect();
+      } catch (e) {}
+      sourceNode = null;
     }
 
-    // Calcular la mantisa de 4 bits
-    let mantissa = ((sample >> (exponent + 3)) & 0x0F);
+    // Cerrar contexto de audio
+    if (audioContext) {
+      try {
+        audioContext.close();
+      } catch (e) {}
+      audioContext = null;
+    }
 
-    // Codificar el valor μ-law
-    let mulawByte = ~(sign | (exponent << 4) | mantissa);
-
-    return mulawByte & 0xFF;
+    // Detener y liberar streams de medios
+    if (mediaStream) {
+      try {
+        mediaStream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      mediaStream = null;
+    }
   }
 
   // Convertir ArrayBuffer a Base64
   function arrayBufferToBase64(buffer) {
-    const binary = [];
     const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary.push(String.fromCharCode(bytes[i]));
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
     }
-    return window.btoa(binary.join(''));
+    return window.btoa(binary);
   }
 
   // API pública

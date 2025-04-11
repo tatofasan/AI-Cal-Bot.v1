@@ -9,7 +9,7 @@ import {
   registerAgentConnection,
   removeAgentConnection
 } from '../utils/sessionManager.js';
-import { processAgentAudio, processAgentTranscript } from "../services/speechService.js";
+import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
@@ -168,6 +168,10 @@ export default function websocketsRoutes(fastify, options) {
         if (data.type === 'agent_connect') {
           // Mensaje de conexión inicial
           console.log("[AgentVoice] Agente conectado:", data.message, { sessionId });
+
+          // Al conectar, enviar inmediatamente un comando de interrupción
+          // para asegurar que el bot deje de hablar cuando el agente toma control
+          await processAgentInterrupt(sessionId);
         }
         else if (data.type === 'agent_disconnect') {
           // Mensaje de desconexión
@@ -176,6 +180,11 @@ export default function websocketsRoutes(fastify, options) {
         else if (data.type === 'agent_audio' && data.payload) {
           // Procesar el audio del agente y enviarlo directo a Twilio
           await processAgentAudio(sessionId, data);
+        }
+        else if (data.type === 'interrupt_bot') {
+          // Comando para interrumpir al bot
+          console.log("[AgentVoice] Recibido comando para interrumpir bot", { sessionId });
+          await processAgentInterrupt(sessionId);
         }
       } catch (error) {
         console.error("[AgentVoice] Error procesando mensaje:", error, { sessionId });

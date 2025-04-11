@@ -107,21 +107,39 @@ const UIController = (() => {
     }
   }
 
-  // Agregar mensaje al chat
+  // Agregar mensaje al chat con los nuevos estilos
   function addChatMessage(text, isBot, isAgent = false) {
     const messageDiv = document.createElement("div");
+
     if (isBot) {
+      // Mensajes del bot o agente
       messageDiv.className = "chat-message server bg-gray-200 p-2 rounded-lg mb-2 max-w-[70%]";
+
+      // Indicador visual según si es agente o bot
       if (isAgent) {
+        // Estilo para el agente (amarillo)
         messageDiv.classList.add("border-l-4", "border-yellow-500");
-        // Añadir indicador visual de que es el agente
         const agentIndicator = document.createElement("div");
         agentIndicator.className = "text-xs text-yellow-600 font-bold mb-1";
         agentIndicator.textContent = "Agente";
         messageDiv.prepend(agentIndicator);
+      } else {
+        // Estilo para el bot (azul)
+        messageDiv.classList.add("border-l-4", "border-blue-500");
+        const botIndicator = document.createElement("div");
+        botIndicator.className = "text-xs text-blue-600 font-bold mb-1";
+        botIndicator.textContent = "Bot";
+        messageDiv.prepend(botIndicator);
       }
     } else {
-      messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto";
+      // Mensajes del cliente (verde)
+      messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto border-r-4 border-green-500";
+
+      // Agregar indicador para el cliente
+      const clientIndicator = document.createElement("div");
+      clientIndicator.className = "text-xs text-green-600 font-bold mb-1 text-right";
+      clientIndicator.textContent = "Cliente";
+      messageDiv.prepend(clientIndicator);
     }
 
     const textContainer = document.createElement("div");

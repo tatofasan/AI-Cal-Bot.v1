@@ -24,6 +24,13 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
       case "interruption":
         console.log("[ElevenLabs] Recibido evento de interrupción", 
           { sessionId: state.sessionId });
+
+        // Notificar a los clientes del frontend sobre la interrupción
+        broadcastToSession(state.sessionId, {
+          type: "interruption",
+          message: "Bot interrumpido por el agente"
+        });
+
         if (state.streamSid) {
           twilioWs.send(
             JSON.stringify({
@@ -67,8 +74,13 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
             { sessionId: state.sessionId }
           );
 
-          // Aquí puedes procesar la transcripción si es necesario
-          // Por ejemplo, mostrarla en la interfaz o guardarla
+          // Enviar la transcripción a los clientes para mostrarla en la interfaz
+          broadcastToSession(state.sessionId, {
+            type: "agent_speech",
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            text: message.transcript.text,
+            isAgent: true
+          });
         }
         break;
 
