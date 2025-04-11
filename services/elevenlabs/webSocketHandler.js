@@ -59,6 +59,41 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
         );
         break;
 
+      case "agent_transcript_result":
+        // Nuevo: Manejar la transcripción del audio del agente humano
+        if (message.transcript && message.transcript.text) {
+          console.log(
+            `[AgentVoice] Transcripción recibida: ${message.transcript.text}`,
+            { sessionId: state.sessionId }
+          );
+
+          // Aquí puedes procesar la transcripción si es necesario
+          // Por ejemplo, mostrarla en la interfaz o guardarla
+        }
+        break;
+
+      case "agent_speech_ready":
+        // Nuevo: Manejar el audio sintetizado del texto del agente
+        if (message.audio_event && message.audio_event.audio_base_64) {
+          console.log(
+            "[AgentVoice] Audio sintetizado recibido para agente humano",
+            { sessionId: state.sessionId }
+          );
+
+          // Enviar el audio sintetizado a Twilio para reproducir al cliente
+          await handleAudioMessage(twilioWs, state, {
+            audio: { chunk: message.audio_event.audio_base_64 }
+          });
+
+          // Marcar el mensaje como proveniente del agente humano para la interfaz
+          broadcastToSession(state.sessionId, {
+            type: "agent_speech",
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            text: message.original_text || "Mensaje del agente"
+          });
+        }
+        break;
+
       default:
         console.log(
           `[ElevenLabs] Tipo de mensaje no manejado: ${message.type}`,
@@ -139,6 +174,11 @@ export const sendInitialConfig = (elevenLabsWs, customParameters) => {
         tts: {
           voice_id: voiceId || "",
         },
+        // Permitir que el agente humano pueda enviar audio y tomar el control
+        agent_control: {
+          enabled: true,
+          allow_agent_audio: true
+        }
       },
     };
 

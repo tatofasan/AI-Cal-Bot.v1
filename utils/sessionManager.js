@@ -23,7 +23,9 @@ export function getOrCreateSession(sessionId) {
       logClients: new Set(),
       twilioWs: null,
       elevenLabsWs: null,
+      agentWs: null,        
       callSid: null,
+      isAgentActive: false, 
       createdAt: Date.now()
     });
     console.log(`[SessionManager] Nueva sesión creada: ${sessionId}`);
@@ -79,6 +81,25 @@ export function registerElevenLabsConnection(sessionId, ws, callSid) {
 }
 
 /**
+ * Registra una conexión de Agente para una sesión
+ * @param {string} sessionId - ID de sesión
+ * @param {WebSocket} ws - Conexión WebSocket del agente
+ */
+export function registerAgentConnection(sessionId, ws) {
+  const session = getOrCreateSession(sessionId);
+  session.agentWs = ws;
+  session.isAgentActive = true;
+
+  // Agregar el sessionId como propiedad del WebSocket
+  ws.sessionId = sessionId;
+
+  console.log(`[SessionManager] Conexión de agente registrada para sesión ${sessionId}`);
+
+  // Notificar a los clientes de log que un agente ha tomado el control
+  broadcastToSession(sessionId, "[INFO] Un agente ha tomado el control de la conversación");
+}
+
+/**
  * Elimina un cliente de logs de su sesión
  * @param {WebSocket} ws - Conexión WebSocket a eliminar
  */
@@ -130,6 +151,27 @@ export function removeElevenLabsConnection(ws) {
 }
 
 /**
+ * Elimina una conexión de Agente de su sesión
+ * @param {WebSocket} ws - Conexión WebSocket a eliminar
+ */
+export function removeAgentConnection(ws) {
+  if (!ws.sessionId) return;
+
+  const session = sessions.get(ws.sessionId);
+  if (session) {
+    session.agentWs = null;
+    session.isAgentActive = false;
+    console.log(`[SessionManager] Conexión de agente eliminada de sesión ${ws.sessionId}`);
+
+    // Notificar a los clientes de log que el agente ha dejado el control
+    broadcastToSession(ws.sessionId, "[INFO] El agente ha dejado el control de la conversación");
+
+    // Limpiar la sesión si ya no hay conexiones activas
+    cleanupSessionIfEmpty(ws.sessionId);
+  }
+}
+
+/**
  * Limpia una sesión si no tiene conexiones activas
  * @param {string} sessionId - ID de sesión a verificar
  */
@@ -140,7 +182,8 @@ function cleanupSessionIfEmpty(sessionId) {
   if (
     session.logClients.size === 0 && 
     !session.twilioWs && 
-    !session.elevenLabsWs
+    !session.elevenLabsWs &&
+    !session.agentWs
   ) {
     sessions.delete(sessionId);
     console.log(`[SessionManager] Sesión ${sessionId} eliminada por inactividad`);

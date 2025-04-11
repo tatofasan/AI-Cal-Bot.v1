@@ -44,7 +44,7 @@
           <option value="qHkrJuifPpn95wK3rm2A" data-nombre="Andrea Chamorro">Andrea Colombiana</option>
         </select>
       </div>
-      <!-- Contenedor de controles en línea: botón unificado de llamar/cortar y botón de monitoreo -->
+      <!-- Contenedor de controles en línea: botones de llamar/cortar, monitoreo y tomar control -->
       <div class="flex justify-center space-x-4 mb-4">
         <!-- Botón unificado de llamar / cortar llamada -->
         <button id="callButton" type="button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
@@ -53,6 +53,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" />
           </svg>
         </button>
+        
         <!-- Botón de monitoreo de audio -->
         <button id="monitorAudioButton" type="button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
           <!-- Ícono Altavoz (activo por defecto) -->
@@ -60,6 +61,15 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
               d="M11 5h2m-2 14h2m-2-7h2m6.586-3.586A2 2 0 0018 7H6a2 2 0 00-1.414.586L3 9v6l1.586 1.414A2 2 0 006 17h12a2 2 0 001.414-.586L21 15V9l-1.414-1.414z" />
           </svg>
+        </button>
+        
+        <!-- Nuevo botón para tomar control como agente -->
+        <button id="takeoverButton" type="button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" disabled>
+          <!-- Ícono Micrófono para tomar control -->
+          <svg id="takeoverIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          <span id="takeoverButtonText">Tomar control</span>
         </button>
       </div>
     </form>
@@ -80,6 +90,7 @@
   <script src="/js/uiController.js"></script>
   <script src="/js/apiService.js"></script>
   <script src="/js/webSocketHandler.js"></script>
+  <script src="/js/agentVoiceCapture.js"></script>
   <script src="/js/main.js"></script>
 </body>
 </html>

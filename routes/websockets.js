@@ -5,8 +5,11 @@ import { logClients } from '../utils/logger.js';
 import { 
   registerLogClient, 
   removeLogClient, 
-  getOrCreateSession
+  getOrCreateSession,
+  registerAgentConnection,
+  removeAgentConnection
 } from '../utils/sessionManager.js';
+import { processAgentAudio, processAgentTranscript } from "../services/speechService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
@@ -99,6 +102,95 @@ export default function websocketsRoutes(fastify, options) {
       } catch (e) {
         // No es un JSON o no tiene sessionId, ignorar
       }
+    });
+  });
+
+  // Nueva ruta para mensajes de texto directos (para que el agente pueda escribir mensajes)
+  fastify.post("/agent-direct-message", async (request, reply) => {
+    try {
+      const { sessionId, message } = request.body;
+
+      if (!sessionId || !message) {
+        return reply.code(400).send({ 
+          success: false, 
+          error: "Se requiere sessionId y message" 
+        });
+      }
+
+      // Obtener la sesión y verificar que existe
+      const session = getOrCreateSession(sessionId);
+      if (!session) {
+        return reply.code(404).send({ 
+          success: false, 
+          error: "Sesión no encontrada" 
+        });
+      }
+
+      // Procesar el mensaje de texto
+      await processAgentTranscript(sessionId, message);
+
+      return reply.send({ 
+        success: true, 
+        message: "Mensaje enviado correctamente" 
+      });
+    } catch (error) {
+      console.error("[AgentAPI] Error procesando mensaje directo:", error);
+      return reply.code(500).send({ 
+        success: false, 
+        error: "Error interno al procesar el mensaje" 
+      });
+    }
+  });
+
+  // Nueva ruta WebSocket para la voz del agente
+  fastify.get("/agent-voice-stream", { websocket: true }, (ws, req) => {
+    // Obtener sessionId del querystring
+    const sessionId = req.query.sessionId;
+    if (!sessionId) {
+      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId");
+      ws.close(1008, "SessionId requerido");
+      return;
+    }
+
+    console.log("[AgentVoice] Conexión WebSocket establecida para voz de agente con sessionId:", sessionId);
+
+    // Registrar la conexión del agente en el gestor de sesiones
+    registerAgentConnection(sessionId, ws);
+
+    // Asociar sessionId con el WebSocket
+    ws.sessionId = sessionId;
+
+    // Manejar mensajes de audio del agente
+    ws.on("message", async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+
+        if (data.type === 'agent_connect') {
+          // Mensaje de conexión inicial
+          console.log("[AgentVoice] Agente conectado:", data.message, { sessionId });
+        }
+        else if (data.type === 'agent_disconnect') {
+          // Mensaje de desconexión
+          console.log("[AgentVoice] Agente desconectado", { sessionId });
+        }
+        else if (data.type === 'agent_audio' && data.payload) {
+          // Procesar el audio del agente y enviarlo directo a Twilio
+          await processAgentAudio(sessionId, data);
+        }
+      } catch (error) {
+        console.error("[AgentVoice] Error procesando mensaje:", error, { sessionId });
+      }
+    });
+
+    // Manejar cierre de conexión
+    ws.on("close", () => {
+      console.log("[AgentVoice] Conexión terminada para voz de agente", { sessionId });
+      removeAgentConnection(ws);
+    });
+
+    // Manejar errores
+    ws.on("error", (error) => {
+      console.error("[AgentVoice] Error en WebSocket:", error, { sessionId });
     });
   });
 }

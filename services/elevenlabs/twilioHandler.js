@@ -23,6 +23,9 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
         state.streamSid = msg.start.streamSid;
         state.callSid = msg.start.callSid;
 
+        // Asegurarse de que el streamSid se guarde en el objeto WebSocket para uso por el agente
+        twilioWs.streamSid = state.streamSid;
+
         // Extraer y guardar los parámetros personalizados
         if (msg.start.customParameters) {
           state.customParameters = msg.start.customParameters;
@@ -34,12 +37,19 @@ export const handleTwilioMessage = async (msg, twilioWs, elevenLabsWs, state, on
           { sessionId: state.sessionId });
 
         // Ejecutar callback de inicio de stream (para conectar con ElevenLabs)
-        if (onStreamStart) {
-          onStreamStart();
+        if (onStreamStart && typeof onStreamStart === 'function') {
+          try {
+            await onStreamStart();
+          } catch (error) {
+            console.error("[Twilio] Error en callback onStreamStart:", error, { sessionId: state.sessionId });
+          }
+        } else {
+          console.log("[Twilio] No se proporcionó callback onStreamStart o no es una función", { sessionId: state.sessionId });
         }
         break;
 
       case "media":
+        // Enviar audio del cliente a la sesión correcta
         await handleMediaMessage(msg, elevenLabsWs, state.sessionId);
         break;
 
@@ -73,7 +83,13 @@ async function handleMediaMessage(msg, elevenLabsWs, sessionId) {
   mediaLogCounter++;
   const shouldLog = (mediaLogCounter % MEDIA_LOG_FREQUENCY === 0);
 
-  if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+  // Verificar si hay un agente activo antes de enviar audio a ElevenLabs
+  const session = getSession(sessionId);
+  const isAgentActive = session && session.isAgentActive && session.agentWs;
+
+  // Si hay un agente activo, no enviamos el audio del cliente a ElevenLabs
+  // Esto evita que ElevenLabs procese y responda mientras el agente está hablando
+  if (!isAgentActive && elevenLabsWs?.readyState === WebSocket.OPEN) {
     try {
       // Procesar el audio para mejorar la transcripción
       const processedPayload = processAudioForSpeechRecognition(msg.media.payload);
@@ -112,7 +128,7 @@ async function handleMediaMessage(msg, elevenLabsWs, sessionId) {
   // Generar un ID único para este fragmento de audio del cliente
   const clientAudioId = Date.now() + Math.random().toString(36).substr(2, 9);
 
-  // Enviar el audio a los clientes de logs de esta sesión específica
+  // Enviar el audio a los clientes de logs de esta sesión específica para monitoreo
   if (sessionId) {
     broadcastToSession(sessionId, {
       type: "client_audio",
