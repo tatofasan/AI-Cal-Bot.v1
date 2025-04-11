@@ -80,27 +80,11 @@ export async function processAgentAudio(sessionId, data) {
       }
     };
 
-    // Información de debugging (solo para mensajes de audio, no de silencio)
-    if (!isSilence) {
-      console.log("[AgentVoice] Enviando audio a Twilio:", {
-        streamSid: session.twilioWs.streamSid,
-        payloadLength: data.payload.length,
-        sessionId,
-        format: data.format || "mulaw",
-        sampleRate: data.sampleRate || 8000
-      });
-    }
-
     // Enviar a Twilio como una cadena JSON formateada correctamente
     session.twilioWs.send(JSON.stringify(audioData));
 
     // Actualizar timestamp del último audio enviado
     session.lastAudioSent = Date.now();
-
-    // Loguear el envío (solo para audio real, no silencio)
-    if (!isSilence) {
-      console.log("[AgentVoice] Audio del agente enviado directamente a Twilio", { sessionId });
-    }
 
     // También enviar el audio a los clientes de logs para monitoreo
     // (solo enviamos audio real, no silencio, para reducir tráfico)
