@@ -10,7 +10,7 @@ import {
   removeAgentConnection
 } from '../utils/sessionManager.js';
 import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
-import { getSession } from "../services/sessionService.js";
+import { getSession, getSessionStats } from "../services/sessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
@@ -64,13 +64,44 @@ export default function websocketsRoutes(fastify, options) {
 
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
-    // Obtener sessionId del querystring
+    // Obtener sessionId del querystring - posible problema con Twilio enviando sessionId
     const sessionId = req.query.sessionId;
 
-    // Validar que se proporcionó un sessionId y que sea válido
-    if (!sessionId || !validateSessionId(sessionId)) {
-      console.error("[WebSocket] Error: Media stream sin sessionId válido");
-      ws.close(1008, "SessionId inválido o no proporcionado");
+    // Log de diagnóstico para ver qué contiene la solicitud
+    console.log("[WebSocket] Params en solicitud media-stream:", { 
+      query: req.query, 
+      url: req.url, 
+      headers: req.headers 
+    });
+
+    // Si no hay sessionId en querystring, usar el último sessionId activo
+    // Este es un workaround para cuando Twilio no pasa correctamente el sessionId
+    if (!sessionId) {
+      // Código de emergencia - usar la última sesión creada si existe
+      try {
+        const stats = getSessionStats();
+        const sessionInfo = stats.sessionInfo || [];
+
+        if (sessionInfo.length > 0) {
+          // Ordenar sesiones por creación, la más reciente primero
+          const sortedSessions = [...sessionInfo].sort((a, b) => b.createdAt - a.createdAt);
+          const latestSessionId = sortedSessions[0].id;
+
+          console.log(`[WebSocket] No se proporcionó sessionId, usando la última sesión activa: ${latestSessionId}`);
+
+          // Asociar sessionId con el WebSocket
+          ws.sessionId = latestSessionId;
+
+          // Configurar el media stream con el sessionId
+          setupMediaStream(ws, latestSessionId);
+          return;
+        }
+      } catch (error) {
+        console.error("[WebSocket] Error obteniendo sesiones:", error);
+      }
+
+      console.error("[WebSocket] Error: Media stream sin sessionId proporcionado y no hay sesiones activas");
+      ws.close(1008, "SessionId no proporcionado");
       return;
     }
 

@@ -21,21 +21,25 @@ export const generateStreamTwiML = (params) => {
   const finalSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 
   // Añadir el sessionId directamente como parámetro en la URL del stream
+  // Cambio para hacer las URL más compatibles con el proxy de Twilio
   const wsUrl = `${wsProtocol}${wsHost}/outbound-media-stream?sessionId=${encodeURIComponent(finalSessionId)}`;
 
   console.log(`[TwiML] Generando TwiML con WebSocket URL: ${wsUrl} y voice_name: ${voice_name}`, 
               { sessionId: finalSessionId });
 
-  // Asegurarse de incluir el sessionId también como parámetro en el Stream
-  // Esto proporciona redundancia en caso de que el parámetro de URL no se procese correctamente
+  // Enviar un mensaje al cliente de log para verificar que la sesión existe
+  console.log(`[TwiML] Sesión asociada con esta llamada: ${finalSessionId}`);
+
+  // Generamos el TwiML sin elemento Say para evitar que se reproduzca audio no deseado
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect>
     <Stream url="${wsUrl}">
-      <Parameter name="user_name" value="${user_name}" />
-      <Parameter name="voice_id" value="${voice_id}" />
-      <Parameter name="voice_name" value="${voice_name}" />
+      <Parameter name="user_name" value="${user_name || ''}" />
+      <Parameter name="voice_id" value="${voice_id || ''}" />
+      <Parameter name="voice_name" value="${voice_name || ''}" />
       <Parameter name="sessionId" value="${finalSessionId}" />
+      <Parameter name="session_id" value="${finalSessionId}" />
     </Stream>
   </Connect>
 </Response>`;

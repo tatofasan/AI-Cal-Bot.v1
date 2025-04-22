@@ -1,5 +1,6 @@
 // src/routes/sessionRoutes.js
-import { createSession, getSessionStats, getSession } from '../services/sessionService.js';
+import { createSession, getSessionStats, getSession, removeSession } from '../services/sessionService.js';
+import { twilioClient } from "../services/twilioService.js";
 
 export default async function sessionRoutes(fastify, options) {
   // Endpoint para solicitar un nuevo sessionId
@@ -84,6 +85,62 @@ export default async function sessionRoutes(fastify, options) {
       return reply.code(500).send({
         success: false,
         error: 'Failed to fetch session details'
+      });
+    }
+  });
+
+  // Nuevo endpoint para terminar una sesión
+  fastify.post('/terminate-session', async (request, reply) => {
+    try {
+      const { sessionId } = request.body;
+
+      if (!sessionId) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Session ID is required'
+        });
+      }
+
+      // Obtener la sesión para verificar si está en una llamada activa
+      const session = getSession(sessionId);
+
+      if (!session) {
+        return reply.code(404).send({
+          success: false,
+          error: 'Session not found'
+        });
+      }
+
+      // Si la sesión tiene una llamada activa, finalizarla primero
+      if (session.callSid) {
+        try {
+          await twilioClient.calls(session.callSid).update({ status: "completed" });
+          console.log(`[SessionRoutes] Llamada ${session.callSid} finalizada como parte de terminación de sesión ${sessionId}`);
+        } catch (twilioError) {
+          // No bloqueamos la terminación de la sesión si falla la finalización de la llamada
+          console.error(`[SessionRoutes] Error al finalizar llamada durante terminación de sesión:`, twilioError);
+        }
+      }
+
+      // Eliminar la sesión
+      const removed = removeSession(sessionId);
+
+      if (removed) {
+        return reply.send({
+          success: true,
+          message: `Session ${sessionId} terminated successfully`
+        });
+      } else {
+        return reply.code(404).send({
+          success: false,
+          error: 'Failed to terminate session - session not found or already terminated'
+        });
+      }
+    } catch (error) {
+      console.error('[SessionRoutes] Error terminating session:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Failed to terminate session due to server error'
       });
     }
   });

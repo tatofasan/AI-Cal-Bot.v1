@@ -13,9 +13,13 @@ const WebSocketClient = (() => {
     closeConnection();
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const dashboardId = `dashboard_${Date.now()}`;
+
+    // Generamos un sessionId específico para el dashboard con formato especial
+    // Esto evita el error "[ERROR] Se requiere un sessionId válido para establecer la conexión"
+    const dashboardId = `session_dashboard_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     try {
+      console.log("[Dashboard] Conectando con sessionId:", dashboardId);
       logsWebSocket = new WebSocket(`${wsProtocol}//${window.location.host}/logs-websocket?sessionId=${dashboardId}`);
 
       logsWebSocket.onopen = function() {

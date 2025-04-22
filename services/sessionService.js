@@ -14,11 +14,18 @@ const CONFIG = {
 
 /**
  * Crea una nueva sesión
+ * @param {string} [specificSessionId] - ID específico para la sesión (opcional)
  * @returns {string} ID de la sesión creada
  */
-export function createSession() {
-  // Generar un ID único para la sesión
-  const sessionId = `session_${uuidv4()}`;
+export function createSession(specificSessionId) {
+  // Generar un ID único para la sesión o usar el proporcionado
+  const sessionId = specificSessionId || `session_${uuidv4()}`;
+
+  // Si la sesión ya existe, solo devolver el ID
+  if (sessions.has(sessionId)) {
+    console.log(`[SessionService] La sesión ${sessionId} ya existe, se devuelve existente`);
+    return sessionId;
+  }
 
   // Crear objeto de sesión
   const session = {

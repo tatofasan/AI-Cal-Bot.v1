@@ -41,6 +41,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // Función para procesar mensajes de WebSocket
+  function processWebSocketMessage(event) {
+    try {
+      const messageText = event.data;
+
+      // Primero registrar el mensaje en el panel de logs del sistema
+      UIController.addLog(messageText);
+
+      // Intentar identificar si es un mensaje procesable
+      // 1. Intentar parsear como JSON
+      try {
+        const data = JSON.parse(messageText);
+
+        // Si es una actualización de sesión, procesarla
+        if (data.type === 'session_update') {
+          // Solicitar actualización de datos
+          SessionMonitor.refreshSessions(processSessionUpdate);
+        } 
+        // Si es una transcripción del usuario o del bot, procesarla para las transcripciones
+        else if (data.type === 'user_transcript' || data.type === 'agent_response' || 
+                 data.type === 'agent_speech' || data.type === 'client_audio') {
+          processTranscriptionMessage(data);
+        }
+      } catch (e) {
+        // No es JSON, procesar como texto normal
+
+        // Comprobar si es un mensaje de transcripción
+        if (messageText.includes("[Twilio] Transcripción del usuario:") || 
+            messageText.includes("[Twilio] Respuesta del agente:") ||
+            (messageText.includes("[AgentVoice]") && 
+             (messageText.includes("Mensaje del agente:") || 
+              messageText.includes("Respuesta sintetizada:")))) {
+
+          // Ya se procesa en UIController.addLog, no necesitamos hacer nada adicional aquí
+        }
+      }
+    } catch (error) {
+      console.error("[Dashboard] Error procesando mensaje:", error);
+    }
+  }
+
+  // Procesar mensajes específicos de transcripción
+  function processTranscriptionMessage(data) {
+    const sessionId = data.sessionId;
+    if (!sessionId) return;
+
+    if (data.type === 'user_transcript' && data.text) {
+      UIController.addTranscript(sessionId, data.text, 'client');
+    } 
+    else if (data.type === 'agent_response' && data.text) {
+      UIController.addTranscript(sessionId, data.text, 'bot');
+    }
+    else if (data.type === 'agent_speech' && data.text) {
+      UIController.addTranscript(sessionId, data.text, data.isAgent ? 'agent' : 'bot');
+    }
+  }
+
   // Conectar al WebSocket
   async function setupDashboardConnection() {
     UIController.addLog('[INFO] Conectando al servidor...');
@@ -48,14 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       await WebSocketClient.connectToDashboardWebSocket(
         // Callback onMessage - recibir mensajes del WebSocket
-        function(event) {
-          try {
-            // Procesar mensaje con SessionMonitor
-            SessionMonitor.processWebSocketMessage(event);
-          } catch (error) {
-            console.error('[Dashboard] Error procesando mensaje:', error);
-          }
-        },
+        processWebSocketMessage,
 
         // Callback onOpen - cuándo se establece la conexión
         function() {

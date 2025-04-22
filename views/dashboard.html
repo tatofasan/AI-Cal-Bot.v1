@@ -46,6 +46,29 @@
     .new-session {
       animation: fadeIn 0.5s ease-out;
     }
+    /* Estilos para transcripciones */
+    .chat-container {
+      max-height: 200px;
+      overflow-y: auto;
+      background-color: #ffffff;
+    }
+    .chat-message {
+      margin-bottom: 8px;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .chat-message.bot {
+      background-color: #EFF6FF;
+      border-left: 3px solid #3B82F6;
+    }
+    .chat-message.agent {
+      background-color: #FEF3C7;
+      border-left: 3px solid #F59E0B;
+    }
+    .chat-message.client {
+      background-color: #ECFDF5;
+      border-left: 3px solid #10B981;
+    }
   </style>
 </head>
 <body class="bg-gray-50 font-sans antialiased">
@@ -126,6 +149,22 @@
       <!-- Mensaje cuando no hay sesiones -->
       <div id="noSessionsMessage" class="hidden text-center py-8">
         <p class="text-gray-500">No hay sesiones activas en este momento.</p>
+      </div>
+    </div>
+    
+    <!-- Sección de transcripciones en tiempo real -->
+    <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Transcripciones en tiempo real</h2>
+      <div class="mb-4">
+        <label for="sessionSelector" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar sesión:</label>
+        <select id="sessionSelector" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Seleccione una sesión...</option>
+        </select>
+      </div>
+      <div id="transcriptContainer" class="chat-container p-4 border border-gray-200 rounded-lg">
+        <div class="text-center text-gray-500 py-10">
+          Seleccione una sesión para ver las transcripciones
+        </div>
       </div>
     </div>
 

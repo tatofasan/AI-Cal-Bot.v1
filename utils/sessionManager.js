@@ -2,7 +2,8 @@
 import { 
   getSession, 
   touchSession, 
-  sessionExists 
+  sessionExists,
+  createSession
 } from '../services/sessionService.js';
 
 /**
@@ -11,11 +12,16 @@ import {
  * @param {WebSocket} ws - Conexión WebSocket del cliente de logs
  */
 export function registerLogClient(sessionId, ws) {
-  const session = getSession(sessionId);
+  let session = getSession(sessionId);
   if (!session) {
-    console.error(`[SessionManager] Intento de registrar cliente de logs con sessionId inválido: ${sessionId}`);
-    ws.close(1008, "SessionId inválido");
-    return;
+    // Si la sesión no existe, la creamos
+    createSession(sessionId);
+    session = getSession(sessionId);
+    if (!session) {
+      console.error(`[SessionManager] No se pudo crear la sesión con ID: ${sessionId}`);
+      ws.close(1008, "Error al crear la sesión");
+      return;
+    }
   }
 
   session.logClients.add(ws);
@@ -32,11 +38,16 @@ export function registerLogClient(sessionId, ws) {
  * @param {WebSocket} ws - Conexión WebSocket de Twilio
  */
 export function registerTwilioConnection(sessionId, ws) {
-  const session = getSession(sessionId);
+  let session = getSession(sessionId);
   if (!session) {
-    console.error(`[SessionManager] Intento de registrar conexión Twilio con sessionId inválido: ${sessionId}`);
-    ws.close(1008, "SessionId inválido");
-    return;
+    // Si la sesión no existe, la creamos
+    createSession(sessionId);
+    session = getSession(sessionId);
+    if (!session) {
+      console.error(`[SessionManager] No se pudo crear la sesión con ID: ${sessionId}`);
+      ws.close(1008, "Error al crear la sesión");
+      return;
+    }
   }
 
   session.twilioWs = ws;
@@ -54,10 +65,15 @@ export function registerTwilioConnection(sessionId, ws) {
  * @param {string} callSid - SID de la llamada asociada
  */
 export function registerElevenLabsConnection(sessionId, ws, callSid) {
-  const session = getSession(sessionId);
+  let session = getSession(sessionId);
   if (!session) {
-    console.error(`[SessionManager] Intento de registrar conexión ElevenLabs con sessionId inválido: ${sessionId}`);
-    return;
+    // Si la sesión no existe, la creamos
+    createSession(sessionId);
+    session = getSession(sessionId);
+    if (!session) {
+      console.error(`[SessionManager] No se pudo crear la sesión con ID: ${sessionId}`);
+      return;
+    }
   }
 
   session.elevenLabsWs = ws;
@@ -75,11 +91,16 @@ export function registerElevenLabsConnection(sessionId, ws, callSid) {
  * @param {WebSocket} ws - Conexión WebSocket del agente
  */
 export function registerAgentConnection(sessionId, ws) {
-  const session = getSession(sessionId);
+  let session = getSession(sessionId);
   if (!session) {
-    console.error(`[SessionManager] Intento de registrar conexión de agente con sessionId inválido: ${sessionId}`);
-    ws.close(1008, "SessionId inválido");
-    return;
+    // Si la sesión no existe, la creamos
+    createSession(sessionId);
+    session = getSession(sessionId);
+    if (!session) {
+      console.error(`[SessionManager] No se pudo crear la sesión con ID: ${sessionId}`);
+      ws.close(1008, "Error al crear la sesión");
+      return;
+    }
   }
 
   session.agentWs = ws;
@@ -173,12 +194,23 @@ export function broadcastToSession(sessionId, message) {
 }
 
 /**
- * Valida si un sessionId existe
+ * Valida si un sessionId existe o tiene un formato válido
  * @param {string} sessionId - ID de sesión a validar
- * @returns {boolean} true si la sesión existe
+ * @returns {boolean} true si la sesión existe o parece válida
  */
 export function validateSessionId(sessionId) {
-  return sessionExists(sessionId);
+  // Si la sesión ya existe, retornamos true
+  if (sessionExists(sessionId)) {
+    return true;
+  }
+
+  // Si el ID no existe pero tiene el formato correcto, permitimos usarlo
+  // para que se pueda crear dinámicamente
+  if (sessionId && sessionId.startsWith('session_') && sessionId.length > 10) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
