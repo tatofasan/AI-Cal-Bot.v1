@@ -1,6 +1,7 @@
 // src/services/elevenlabs/webSocketHandler.js
 import WebSocket from "ws";
 import { broadcastToSession } from "../../utils/sessionManager.js";
+import { addTranscription } from "../../services/sessionService.js";
 
 /**
  * Maneja los eventos de mensajes recibidos desde el WebSocket de ElevenLabs
@@ -64,6 +65,15 @@ export const handleElevenLabsMessage = async (
           `[Twilio] Respuesta del agente: ${message.agent_response_event?.agent_response}`,
           { sessionId: state.sessionId },
         );
+
+        // Guardar la respuesta del agente (bot) como transcripción
+        if (message.agent_response_event?.agent_response) {
+          addTranscription(
+            state.sessionId, 
+            message.agent_response_event.agent_response,
+            'bot'
+          );
+        }
         break;
 
       case "user_transcript":
@@ -71,6 +81,15 @@ export const handleElevenLabsMessage = async (
           `[Twilio] Transcripción del usuario: ${message.user_transcription_event?.user_transcript}`,
           { sessionId: state.sessionId },
         );
+
+        // Guardar la transcripción del usuario
+        if (message.user_transcription_event?.user_transcript) {
+          addTranscription(
+            state.sessionId,
+            message.user_transcription_event.user_transcript,
+            'client'
+          );
+        }
         break;
 
       case "agent_transcript_result":
@@ -79,6 +98,13 @@ export const handleElevenLabsMessage = async (
           console.log(
             `[AgentVoice] Transcripción recibida: ${message.transcript.text}`,
             { sessionId: state.sessionId },
+          );
+
+          // Guardar la transcripción del agente humano
+          addTranscription(
+            state.sessionId,
+            message.transcript.text,
+            'agent'
           );
 
           // Enviar la transcripción a los clientes para mostrarla en la interfaz
@@ -103,6 +129,15 @@ export const handleElevenLabsMessage = async (
           await handleAudioMessage(twilioWs, state, {
             audio: { chunk: message.audio_event.audio_base_64 },
           });
+
+          // Guardar el texto original si está disponible
+          if (message.original_text) {
+            addTranscription(
+              state.sessionId,
+              message.original_text,
+              'agent'
+            );
+          }
 
           // Marcar el mensaje como proveniente del agente humano para la interfaz
           broadcastToSession(state.sessionId, {
@@ -175,7 +210,7 @@ export const sendInitialConfig = (elevenLabsWs, customParameters) => {
     // Extraer el nombre del usuario de los parámetros
     const userName = customParameters?.user_name || "Usuario";
     const voiceId = customParameters?.voice_id || "";
-    const voiceName = customParameters?.voice_name || "";
+    const voiceName = customParameters?.voice_name || '';
     const sessionId = elevenLabsWs.sessionId;
 
     console.log("[ElevenLabs] Enviando configuración inicial", { sessionId });

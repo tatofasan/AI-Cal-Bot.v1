@@ -1,6 +1,7 @@
 // src/services/speechService.js
 import WebSocket from "ws";
-import { getSession, broadcastToSession } from "../utils/sessionManager.js";
+import { broadcastToSession } from "../utils/sessionManager.js";
+import { getSession } from "../services/sessionService.js";
 import { amplifyAudio } from "../utils/audioProcessor.js"; // Importar la función de amplificación
 
 /**

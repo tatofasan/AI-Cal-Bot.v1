@@ -5,8 +5,8 @@ import { handleTwilioMessage } from "./twilioHandler.js";
 import { 
   registerTwilioConnection, 
   removeTwilioConnection,
-  getSession
 } from "../../utils/sessionManager.js";
+import { getSession, createSession } from "../../services/sessionService.js";
 
 // Variable para controlar la frecuencia de los logs
 let messageLogCounter = 0;
@@ -23,6 +23,13 @@ export const setupMediaStream = async (ws, sessionId) => {
     console.error("[Server] ERROR: setupMediaStream llamado sin sessionId");
     sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     console.info("[Server] Generado sessionId de emergencia:", sessionId);
+  }
+
+  // Asegurarnos de que la sesión existe
+  const session = getSession(sessionId);
+  if (!session) {
+    console.log(`[Server] Creando sesión nueva para ${sessionId} durante setupMediaStream`);
+    createSession(sessionId);
   }
 
   console.info(
@@ -49,9 +56,16 @@ export const setupMediaStream = async (ws, sessionId) => {
   });
 
   // Procesar mensajes de Twilio
-  ws.on("message", (message) => {
+  ws.on("message", async (message) => {
     try {
-      const msg = JSON.parse(message);
+      // Intentar parsear el mensaje como JSON
+      let msg;
+      try {
+        msg = JSON.parse(message);
+      } catch (e) {
+        console.error("[Twilio] Error parseando mensaje:", e, message.toString().substring(0, 100));
+        return;
+      }
 
       // Log reducido - solo para eventos específicos o con baja frecuencia
       messageLogCounter++;
@@ -61,6 +75,9 @@ export const setupMediaStream = async (ws, sessionId) => {
 
       // Si tenemos un evento 'start', verificar los parámetros personalizados para el sessionId
       if (msg.event === 'start' && msg.start) {
+        // Log completo para diagnóstico
+        console.log("[Twilio] Mensaje start completo:", JSON.stringify(msg.start));
+
         // Si tenemos un streamSid, guardarlo en el objeto ws Y en el estado para que el agente pueda usarlo
         if (msg.start.streamSid) {
           state.streamSid = msg.start.streamSid;
@@ -69,35 +86,64 @@ export const setupMediaStream = async (ws, sessionId) => {
             { sessionId });
         }
 
-        // Si hay un sessionId en los parámetros personalizados y no coincide con el actual,
-        // actualizar el sessionId
-        if (msg.start.customParameters && msg.start.customParameters.sessionId && 
-            msg.start.customParameters.sessionId !== sessionId) {
-          const newSessionId = msg.start.customParameters.sessionId;
-          console.log(`[Twilio] Actualizando sessionId de ${sessionId} a ${newSessionId}`);
-
-          // Actualizar sessionId en el estado
-          state.sessionId = newSessionId;
-          ws.sessionId = newSessionId;
-
-          // Re-registrar la conexión con el nuevo sessionId
-          removeTwilioConnection(ws);
-          registerTwilioConnection(newSessionId, ws);
-
-          // Actualizar la referencia para logs futuros
-          sessionId = newSessionId;
+        // Si tenemos un callSid, guardarlo también
+        if (msg.start.callSid) {
+          state.callSid = msg.start.callSid;
+          console.log(`[Twilio] Guardando callSid ${state.callSid}`, { sessionId });
         }
 
         // Extraer y guardar los parámetros personalizados
         if (msg.start.customParameters) {
           state.customParameters = msg.start.customParameters;
-          console.log("[Twilio] Parámetros personalizados recibidos", 
-            { sessionId: state.sessionId });
+          console.log("[Twilio] Parámetros personalizados recibidos:", 
+            JSON.stringify(state.customParameters),
+            { sessionId });
+
+          // Si hay un sessionId en los parámetros personalizados y no coincide con el actual,
+          // actualizar el sessionId - podemos usar cualquiera de los dos nombres de parámetro
+          const paramSessionId = msg.start.customParameters.sessionId || msg.start.customParameters.session_id;
+
+          if (paramSessionId && paramSessionId !== sessionId) {
+            const newSessionId = paramSessionId;
+            console.log(`[Twilio] Actualizando sessionId de ${sessionId} a ${newSessionId}`);
+
+            // Actualizar sessionId en el estado
+            state.sessionId = newSessionId;
+            ws.sessionId = newSessionId;
+
+            // Re-registrar la conexión con el nuevo sessionId
+            removeTwilioConnection(ws);
+            registerTwilioConnection(newSessionId, ws);
+
+            // Actualizar la referencia para logs futuros
+            sessionId = newSessionId;
+          }
+
+          // Iniciar la conexión con ElevenLabs inmediatamente después de procesar 
+          // el mensaje start con los parámetros
+          try {
+            elevenLabsWs = await setupElevenLabsConnection(state, ws);
+          } catch (elevenlabsError) {
+            console.error("[Twilio] Error iniciando ElevenLabs:", elevenlabsError, { sessionId });
+          }
         }
 
         // Imprimir un mensaje detallado al iniciar el stream
         console.log(`[Twilio] Stream iniciado - StreamSid: ${state.streamSid}, SessionId: ${sessionId}`, 
           { sessionId });
+      }
+
+      // Si no hay elevenLabsWs aún e intentamos procesar audio, reintentar la conexión
+      if (msg.event === 'media' && !elevenLabsWs && state.customParameters) {
+        // Solo intentar una vez cada cierto número de mensajes para no sobrecargar
+        if (messageLogCounter % 20 === 0) {
+          console.log("[Twilio] Intentando reconectar con ElevenLabs", { sessionId });
+          try {
+            elevenLabsWs = await setupElevenLabsConnection(state, ws);
+          } catch (retryError) {
+            console.error("[Twilio] Error en reintento de conexión con ElevenLabs:", retryError, { sessionId });
+          }
+        }
       }
 
       // Usar la función de manejo de mensajes de Twilio
@@ -108,8 +154,14 @@ export const setupMediaStream = async (ws, sessionId) => {
         state, 
         // Callback para iniciar ElevenLabs después de recibir parámetros
         async () => {
-          // Iniciar ElevenLabs solo después de recibir los parámetros
-          elevenLabsWs = await setupElevenLabsConnection(state, ws);
+          // Solo iniciar si aún no se ha iniciado
+          if (!elevenLabsWs) {
+            try {
+              elevenLabsWs = await setupElevenLabsConnection(state, ws);
+            } catch (callbackError) {
+              console.error("[Twilio] Error en callback de inicialización de ElevenLabs:", callbackError, { sessionId });
+            }
+          }
         }
       );
     } catch (error) {

@@ -1,5 +1,6 @@
 // src/routes/outbound/callController.js
 import { twilioCall, twilioClient, twiml } from "../../services/twilioService.js";
+import { registerCall, updateCall } from "../../services/callStorageService.js";
 
 /**
  * Inicia una llamada saliente a través de Twilio
@@ -49,6 +50,20 @@ export const initiateCall = async (request, reply) => {
     }
 
     const callResult = await twilioCall(callParams);
+
+    // Registrar/actualizar la llamada en el sistema de almacenamiento
+    if (callResult.success && callResult.callSid) {
+      // Convertir datos de camelCase a snake_case y viceversa según sea necesario
+      registerCall({
+        sessionId: callResult.sessionId || sessionId,
+        callSid: callResult.callSid,
+        userName: user_name,
+        phoneNumber: to_number,
+        voiceId: voice_id,
+        voiceName: voice_name
+      });
+    }
+
     return reply.send(callResult);
   } catch (error) {
     console.error("[Outbound Call] Error:", error, sessionContext);
@@ -76,6 +91,14 @@ export const generateTwiML = async (request, reply) => {
     const sessionContext = sessionId ? { sessionId } : {};
 
     console.log("[TwiML] Generando TwiML para usuario:", user_name, sessionContext);
+
+    // Si tenemos un sessionId, actualizamos la llamada en el sistema de almacenamiento
+    if (sessionId) {
+      updateCall(sessionId, {
+        twimlGenerated: true,
+        lastTwimlTimestamp: Date.now()
+      });
+    }
 
     const twimlResponse = twiml.generateStreamTwiML({ 
       user_name, 
@@ -114,6 +137,41 @@ export const endCall = async (request, reply) => {
   try {
     const call = await twilioClient.calls(callSid).update({ status: "completed" });
     console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`, sessionContext);
+
+    // Registrar el fin de la llamada en el servicio de almacenamiento
+    if (sessionId) {
+      try {
+        // Importación dinámica para evitar problemas de dependencia circular
+        const { endCall: storageEndCall } = await import("../../services/callStorageService.js");
+
+        // Registrar en el almacenamiento
+        storageEndCall(sessionId, { 
+          callSid,
+          endReason: "manual_termination"
+        });
+
+        // Notificar a los clientes conectados sobre el cambio de estado
+        try {
+          // Importar utilidades para broadcast
+          const { broadcastToSession } = await import("../../utils/sessionManager.js");
+
+          // Enviar notificación del cambio de estado
+          broadcastToSession(sessionId, JSON.stringify({
+            type: 'call_update',
+            callId: sessionId,
+            status: 'ended',
+            message: 'Llamada finalizada manualmente'
+          }));
+        } catch (broadcastError) {
+          console.error(`[Twilio] Error enviando broadcast de fin de llamada:`, broadcastError, sessionContext);
+          // No bloquear la respuesta por un error en el broadcast
+        }
+      } catch (storageError) {
+        console.error(`[Twilio] Error registrando fin de llamada en almacenamiento:`, storageError, sessionContext);
+        // No bloquear la respuesta por un error en el almacenamiento
+      }
+    }
+
     return reply.send({
       success: true,
       message: `Call ${callSid} ended`,

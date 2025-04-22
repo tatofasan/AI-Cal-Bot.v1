@@ -10,6 +10,16 @@ const AudioProcessor = (() => {
   let isMonitoring = true;
   let processedAudioIds = new Set(); // Para evitar procesar audios duplicados
 
+  // Variables para métricas
+  let latencyMetrics = {
+    lastAudioReceived: 0,
+    audioChunksReceived: 0,
+    avgLatency: 0,
+    maxLatency: 0,
+    minLatency: Number.MAX_VALUE,
+    recentLatencies: []
+  };
+
   // Inicializar el sistema de audio
   function getAudioContext() {
     if (!audioContext) {
@@ -51,6 +61,9 @@ const AudioProcessor = (() => {
 
   // Reproducción de audio
   function playBotAudioChunk(base64Data, messageId) {
+    // Registrar métricas de latencia
+    updateLatencyMetrics();
+
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
@@ -134,6 +147,83 @@ const AudioProcessor = (() => {
     }
   }
 
+  // Actualizar las métricas de latencia del audio
+  function updateLatencyMetrics() {
+    const now = Date.now();
+    latencyMetrics.audioChunksReceived++;
+
+    // Calcular latencia solo si ya hemos recibido un chunk antes
+    if (latencyMetrics.lastAudioReceived > 0) {
+      const latency = now - latencyMetrics.lastAudioReceived;
+
+      // Guardar las últimas 10 latencias para un promedio móvil
+      latencyMetrics.recentLatencies.push(latency);
+      if (latencyMetrics.recentLatencies.length > 10) {
+        latencyMetrics.recentLatencies.shift(); // Mantener solo las últimas 10
+      }
+
+      // Calcular promedio móvil
+      const sum = latencyMetrics.recentLatencies.reduce((a, b) => a + b, 0);
+      latencyMetrics.avgLatency = Math.round(sum / latencyMetrics.recentLatencies.length);
+
+      // Actualizar max y min
+      latencyMetrics.maxLatency = Math.max(latencyMetrics.maxLatency, latency);
+      latencyMetrics.minLatency = Math.min(latencyMetrics.minLatency, latency);
+
+      // Actualizar UI con las métricas cada 5 chunks
+      if (latencyMetrics.audioChunksReceived % 5 === 0) {
+        updateLatencyUI();
+      }
+    }
+
+    latencyMetrics.lastAudioReceived = now;
+  }
+
+  // Actualizar la UI con las métricas de latencia
+  function updateLatencyUI() {
+    // Buscar o crear el elemento de métricas
+    let metricsElement = document.getElementById('audio-metrics');
+    if (!metricsElement) {
+      metricsElement = document.createElement('div');
+      metricsElement.id = 'audio-metrics';
+      metricsElement.className = 'text-xs bg-gray-100 p-2 rounded text-gray-700 mt-2';
+
+      // Insertar después del callStatus
+      const callStatus = document.getElementById('callStatus');
+      if (callStatus && callStatus.parentNode) {
+        callStatus.parentNode.insertBefore(metricsElement, callStatus.nextSibling);
+      }
+    }
+
+    // Determinar el estado de la latencia
+    let latencyClass = 'text-green-600';
+    let latencyStatus = 'Buena';
+
+    if (latencyMetrics.avgLatency > 500) {
+      latencyClass = 'text-red-600';
+      latencyStatus = 'Alta';
+    } else if (latencyMetrics.avgLatency > 200) {
+      latencyClass = 'text-yellow-600';
+      latencyStatus = 'Media';
+    }
+
+    // Actualizar el contenido
+    metricsElement.innerHTML = `
+      <div class="flex justify-between items-center">
+        <span class="font-bold">Métricas de Audio:</span>
+        <span class="${latencyClass} font-bold">Latencia ${latencyStatus}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mt-1">
+        <div>Promedio: <span class="font-mono">${latencyMetrics.avgLatency}ms</span></div>
+        <div>Mín: <span class="font-mono">${latencyMetrics.minLatency === Number.MAX_VALUE ? 'N/A' : latencyMetrics.minLatency + 'ms'}</span></div>
+        <div>Máx: <span class="font-mono">${latencyMetrics.maxLatency}ms</span></div>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">
+        Chunks recibidos: ${latencyMetrics.audioChunksReceived}
+      </div>
+    `;
+  }
+
   // Control de audio
   function clearAudioQueues() {
     botAudioSources.forEach(source => { 
@@ -198,13 +288,19 @@ const AudioProcessor = (() => {
     return isMonitoring;
   }
 
+  // Obtener métricas de latencia
+  function getLatencyMetrics() {
+    return { ...latencyMetrics };
+  }
+
   // API pública
   return {
     playBotAudioChunk,
     playClientAudioChunk,
     clearAudioQueues,
     toggleMonitoring,
-    isMonitoring: () => isMonitoring
+    isMonitoring: () => isMonitoring,
+    getLatencyMetrics
   };
 })();
 

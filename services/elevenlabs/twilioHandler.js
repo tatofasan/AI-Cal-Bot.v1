@@ -2,7 +2,8 @@
 import WebSocket from "ws";
 import { amplifyAudio, processAudioForSpeechRecognition } from "../../utils/audioProcessor.js";
 import { twilioClient } from "../twilioService.js";
-import { broadcastToSession, getSession } from "../../utils/sessionManager.js";
+import { broadcastToSession } from "../../utils/sessionManager.js";
+import { getSession } from "../../services/sessionService.js";
 
 // Variable para controlar la frecuencia de los logs
 let mediaLogCounter = 0;

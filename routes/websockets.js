@@ -5,17 +5,26 @@ import { logClients } from '../utils/logger.js';
 import { 
   registerLogClient, 
   removeLogClient, 
-  getOrCreateSession,
+  validateSessionId,
   registerAgentConnection,
   removeAgentConnection
 } from '../utils/sessionManager.js';
 import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
+import { getSession, addTranscription, getSessionStats } from "../services/sessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
-    // Obtener sessionId del querystring o generar uno nuevo si no existe
-    const sessionId = req.query.sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    // Obtener sessionId del querystring
+    const sessionId = req.query.sessionId;
+
+    // Validar que se proporcionó un sessionId y que sea válido
+    if (!sessionId || !validateSessionId(sessionId)) {
+      console.error("[WebSocket] Error: conexión websocket sin sessionId válido");
+      ws.send("[ERROR] Se requiere un sessionId válido para establecer la conexión");
+      ws.close(1008, "SessionId inválido o no proporcionado");
+      return;
+    }
 
     // Registrar nuevo cliente en el gestor de sesiones
     registerLogClient(sessionId, ws);
@@ -42,6 +51,17 @@ export default function websocketsRoutes(fastify, options) {
       if (message.toString() === "heartbeat") {
         ws.send("[HEARTBEAT] Conexión activa");
       }
+
+      // Intentar capturar mensajes con transcripciones
+      try {
+        const messageText = message.toString();
+
+        // Procesar posibles transcripciones en mensajes del WebSocket
+        processTranscriptionsFromMessage(messageText, sessionId);
+
+      } catch (error) {
+        // Ignorar errores al procesar transcripciones
+      }
     });
 
     ws.on("error", (error) => {
@@ -55,28 +75,46 @@ export default function websocketsRoutes(fastify, options) {
 
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
-    // Debugging: Registrar todas las queries recibidas
-    console.log("[Server] WebSocket query params:", req.query);
+    // Obtener sessionId del querystring - posible problema con Twilio enviando sessionId
+    const sessionId = req.query.sessionId;
 
-    // Obtener sessionId del querystring o de los parámetros del Stream
-    let sessionId = req.query.sessionId;
+    // Log de diagnóstico para ver qué contiene la solicitud
+    console.log("[WebSocket] Params en solicitud media-stream:", { 
+      query: req.query, 
+      url: req.url, 
+      headers: req.headers 
+    });
 
-    // Comprobar si fue proporcionado como un parámetro de mensaje inicial en la conexión
-    if (!sessionId && req.body && req.body.sessionId) {
-      sessionId = req.body.sessionId;
-      console.log("[Server] sessionId obtenido del cuerpo del mensaje:", sessionId);
-    }
-
-    // Si todavía no hay sessionId, intentar obtenerlo de los headers personalizados
-    if (!sessionId && req.headers && req.headers['x-session-id']) {
-      sessionId = req.headers['x-session-id'];
-      console.log("[Server] sessionId obtenido de los headers:", sessionId);
-    }
-
-    // Si no hay sessionId, crear uno nuevo
+    // Si no hay sessionId en querystring, usar el último sessionId activo
+    // Este es un workaround para cuando Twilio no pasa correctamente el sessionId
     if (!sessionId) {
-      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      console.log("[Server] Generando nuevo sessionId porque no se proporcionó uno:", sessionId);
+      // Código de emergencia - usar la última sesión creada si existe
+      try {
+        // Usar la función importada en la parte superior del archivo
+        const stats = getSessionStats();
+        const sessionInfo = stats.sessionInfo || [];
+
+        if (sessionInfo.length > 0) {
+          // Ordenar sesiones por creación, la más reciente primero
+          const sortedSessions = [...sessionInfo].sort((a, b) => b.createdAt - a.createdAt);
+          const latestSessionId = sortedSessions[0].id;
+
+          console.log(`[WebSocket] No se proporcionó sessionId, usando la última sesión activa: ${latestSessionId}`);
+
+          // Asociar sessionId con el WebSocket
+          ws.sessionId = latestSessionId;
+
+          // Configurar el media stream con el sessionId
+          setupMediaStream(ws, latestSessionId);
+          return;
+        }
+      } catch (error) {
+        console.error("[WebSocket] Error obteniendo sesiones:", error);
+      }
+
+      console.error("[WebSocket] Error: Media stream sin sessionId proporcionado y no hay sesiones activas");
+      ws.close(1008, "SessionId no proporcionado");
+      return;
     }
 
     console.info("[Server] Conexión WebSocket para stream de medios iniciada con sessionId:", sessionId);
@@ -86,23 +124,6 @@ export default function websocketsRoutes(fastify, options) {
 
     // Configurar el media stream con el sessionId
     setupMediaStream(ws, sessionId);
-
-    // Manejar mensajes iniciales que podrían contener el sessionId
-    ws.on("message", function firstMessage(message) {
-      try {
-        const data = JSON.parse(message.toString());
-        if (data.sessionId && !ws.sessionId) {
-          console.log("[Server] sessionId recibido en primer mensaje:", data.sessionId);
-          ws.sessionId = data.sessionId;
-          // Reconfigurar el stream con el nuevo sessionId
-          setupMediaStream(ws, data.sessionId);
-        }
-        // Eliminar este handler después del primer mensaje
-        ws.removeListener("message", firstMessage);
-      } catch (e) {
-        // No es un JSON o no tiene sessionId, ignorar
-      }
-    });
   });
 
   // Nueva ruta para mensajes de texto directos (para que el agente pueda escribir mensajes)
@@ -117,14 +138,25 @@ export default function websocketsRoutes(fastify, options) {
         });
       }
 
+      // Validar que el sessionId sea válido
+      if (!validateSessionId(sessionId)) {
+        return reply.code(404).send({ 
+          success: false, 
+          error: "SessionId inválido" 
+        });
+      }
+
       // Obtener la sesión y verificar que existe
-      const session = getOrCreateSession(sessionId);
+      const session = getSession(sessionId);
       if (!session) {
         return reply.code(404).send({ 
           success: false, 
           error: "Sesión no encontrada" 
         });
       }
+
+      // Guardar el mensaje como transcripción (del agente)
+      addTranscription(sessionId, message, 'agent');
 
       // Procesar el mensaje de texto
       await processAgentTranscript(sessionId, message);
@@ -146,9 +178,11 @@ export default function websocketsRoutes(fastify, options) {
   fastify.get("/agent-voice-stream", { websocket: true }, (ws, req) => {
     // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
-    if (!sessionId) {
-      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId");
-      ws.close(1008, "SessionId requerido");
+
+    // Validar que se proporcionó un sessionId y que sea válido
+    if (!sessionId || !validateSessionId(sessionId)) {
+      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId válido");
+      ws.close(1008, "SessionId inválido o no proporcionado");
       return;
     }
 
@@ -169,6 +203,9 @@ export default function websocketsRoutes(fastify, options) {
           // Mensaje de conexión inicial
           console.log("[AgentVoice] Agente conectado:", data.message, { sessionId });
 
+          // Guardar como mensaje del sistema
+          addTranscription(sessionId, "El agente humano ha tomado el control de la llamada", 'system');
+
           // Al conectar, enviar inmediatamente un comando de interrupción
           // para asegurar que el bot deje de hablar cuando el agente toma control
           await processAgentInterrupt(sessionId);
@@ -176,6 +213,9 @@ export default function websocketsRoutes(fastify, options) {
         else if (data.type === 'agent_disconnect') {
           // Mensaje de desconexión
           console.log("[AgentVoice] Agente desconectado", { sessionId });
+
+          // Guardar como mensaje del sistema
+          addTranscription(sessionId, "El agente humano ha dejado el control de la llamada", 'system');
         }
         else if (data.type === 'agent_audio' && data.payload) {
           // Procesar el audio del agente y enviarlo directo a Twilio
@@ -202,4 +242,53 @@ export default function websocketsRoutes(fastify, options) {
       console.error("[AgentVoice] Error en WebSocket:", error, { sessionId });
     });
   });
+
+  // Función auxiliar para procesar posibles transcripciones en mensajes
+  function processTranscriptionsFromMessage(messageText, sessionId) {
+    // Detectar transcripciones del usuario
+    if (messageText.includes("[Twilio] Transcripción del usuario:")) {
+      const text = messageText.replace(/.*Transcripción del usuario:\s*/, "").trim();
+      if (text) {
+        addTranscription(sessionId, text, 'client');
+        console.log(`[WebSocket] Transcripción de usuario capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
+      }
+    } 
+    // Detectar respuestas del bot
+    else if (messageText.includes("[Twilio] Respuesta del agente:")) {
+      const text = messageText.replace(/.*Respuesta del agente:\s*/, "").trim();
+      if (text) {
+        // Determinar si es bot o agente humano
+        const speakerType = messageText.includes("[AGENT]") ? 'agent' : 'bot';
+        addTranscription(sessionId, text, speakerType);
+        console.log(`[WebSocket] Respuesta del ${speakerType} capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
+      }
+    }
+    // Detectar mensajes del agente
+    else if (messageText.includes("[AgentVoice]")) {
+      if (messageText.includes("Mensaje del agente:")) {
+        const text = messageText.replace(/.*Mensaje del agente:\s*/, "").trim();
+        if (text) {
+          addTranscription(sessionId, text, 'agent');
+          console.log(`[WebSocket] Mensaje del agente capturado y guardado: "${text.substring(0, 30)}..."`, { sessionId });
+        }
+      }
+    }
+
+    // Intentar procesar como objeto JSON
+    try {
+      const jsonData = JSON.parse(messageText);
+
+      if (jsonData.type === 'user_transcript' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, 'client');
+      }
+      else if (jsonData.type === 'agent_response' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, 'bot');
+      }
+      else if (jsonData.type === 'agent_speech' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, jsonData.isAgent ? 'agent' : 'bot');
+      }
+    } catch (e) {
+      // No es JSON, ignorar
+    }
+  }
 }

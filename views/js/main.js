@@ -43,8 +43,11 @@ function setupEventListeners() {
       // Añadir un mensaje de log
       UIController.addLog('[INFO] Interrumpiendo bot y tomando control de la llamada...');
 
+      // Obtener sessionId actual
+      const sessionId = await WebSocketHandler.getSessionId();
+
       // Iniciar control del agente
-      const success = await AgentVoiceCapture.startCapturing(WebSocketHandler.getSessionId());
+      const success = await AgentVoiceCapture.startCapturing(sessionId);
       if (success) {
         UIController.updateTakeoverButton(true);
         UIController.addLog('[INFO] Tomando control de la llamada como agente humano');
@@ -78,6 +81,9 @@ async function startNewCall() {
     // Obtener datos del formulario
     const callData = UIController.getCallFormData();
 
+    // Asegurar que tenemos un sessionId antes de iniciar la llamada
+    callData.sessionId = await WebSocketHandler.getSessionId();
+
     // Log de depuración para verificar que voice_name está correctamente incluido
     console.log("Enviando datos de llamada:", callData);
 
@@ -108,7 +114,9 @@ async function startNewCall() {
 async function endCurrentCall() {
   try {
     const callSid = UIController.getCurrentCallSid();
-    const result = await ApiService.endCall(callSid);
+    const sessionId = await WebSocketHandler.getSessionId();
+
+    const result = await ApiService.endCall(callSid, sessionId);
 
     console.log("Llamada cortada:", result.message);
     AudioProcessor.clearAudioQueues();
@@ -133,106 +141,111 @@ async function endCurrentCall() {
 }
 
 // Configurar la conexión WebSocket
-function setupWebSocket() {
-  WebSocketHandler.connectToLogsWebSocket(
-    // Callback onMessage
-    function(event) {
-      let data;
-      try {
-        data = JSON.parse(event.data);
-      }
-      catch (e) {
-        data = { type: "log", message: event.data };
-      }
+async function setupWebSocket() {
+  try {
+    await WebSocketHandler.connectToLogsWebSocket(
+      // Callback onMessage
+      function(event) {
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        }
+        catch (e) {
+          data = { type: "log", message: event.data };
+        }
 
-      // Procesar según el tipo de mensaje
-      if (data.type === "audio") {
-        // Si el agente está activo, no reproducir el audio del bot
-        if (UIController.isAgentActive()) {
-          console.log("[WebSocket] Audio del bot ignorado porque el agente está activo");
+        // Procesar según el tipo de mensaje
+        if (data.type === "audio") {
+          // Si el agente está activo, no reproducir el audio del bot
+          if (UIController.isAgentActive()) {
+            console.log("[WebSocket] Audio del bot ignorado porque el agente está activo");
+            return;
+          }
+
+          // Usar messageId si disponible (para prevenir duplicados)
+          const messageId = data.id || null;
+          if (data.payload) {
+            AudioProcessor.playBotAudioChunk(data.payload, messageId);
+          }
           return;
         }
 
-        // Usar messageId si disponible (para prevenir duplicados)
-        const messageId = data.id || null;
-        if (data.payload) {
-          AudioProcessor.playBotAudioChunk(data.payload, messageId);
-        }
-        return;
-      }
-
-      if (data.type === "client_audio") {
-        const messageId = data.id || null;
-        if (data.payload) {
-          AudioProcessor.playClientAudioChunk(data.payload, messageId);
-        }
-        return;
-      }
-
-      // Verificar si es una interrupción
-      if (data.type === "interruption" || 
-          (typeof data.message === 'string' && data.message.includes("interrupción"))) {
-        console.log("[WebSocket] Interrupción detectada, limpiando colas de audio");
-        AudioProcessor.clearAudioQueues();
-      }
-
-      // Procesar logs y transcripciones
-      const log = data.message || event.data;
-      console.log("Log recibido:", log);
-
-      if (log.includes("Recibido evento de interrupción") || 
-          log.includes("interrupción") || 
-          log.includes("Agente") || 
-          log.includes("interrupting")) {
-        console.log("[WebSocket] Comando de interrupción detectado en logs");
-        AudioProcessor.clearAudioQueues();
-      }
-
-      UIController.addLog(log);
-
-      // Detectar si un agente tomó o dejó el control
-      if (log.includes("[INFO] Un agente ha tomado el control de la conversación")) {
-        UIController.addLog("[INFO] Un agente humano está controlando la conversación");
-        AudioProcessor.clearAudioQueues();
-      } else if (log.includes("[INFO] El agente ha dejado el control de la conversación")) {
-        UIController.addLog("[INFO] El bot ha retomado el control de la conversación");
-      }
-
-      // Manejar transcripciones para el chat
-      if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
-        const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
-        // Determinar si es un mensaje de agente humano o del bot
-        const isFromHumanAgent = log.includes("[AGENT]");
-        UIController.addChatMessage(messageText, true, isFromHumanAgent);
-        UIController.updateConnectionStatus(true);
-      } else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
-        const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
-        UIController.addChatMessage(messageText, false);
-      } else if (log.includes("[LOG] [AgentVoice]")) {
-        // Capturar mensajes específicos del agente
-        if (log.includes("Respuesta sintetizada:") || log.includes("Mensaje del agente:")) {
-          // Extraer el mensaje del log
-          let messageText;
-          if (log.includes("Respuesta sintetizada:")) {
-            messageText = log.replace(/.*Respuesta sintetizada: /g, "").trim();
-          } else {
-            messageText = log.replace(/.*Mensaje del agente: /g, "").trim();
+        if (data.type === "client_audio") {
+          const messageId = data.id || null;
+          if (data.payload) {
+            AudioProcessor.playClientAudioChunk(data.payload, messageId);
           }
-          // Añadir el mensaje al chat como agente humano
-          UIController.addChatMessage(messageText, true, true);
+          return;
         }
+
+        // Verificar si es una interrupción
+        if (data.type === "interruption" || 
+            (typeof data.message === 'string' && data.message.includes("interrupción"))) {
+          console.log("[WebSocket] Interrupción detectada, limpiando colas de audio");
+          AudioProcessor.clearAudioQueues();
+        }
+
+        // Procesar logs y transcripciones
+        const log = data.message || event.data;
+        console.log("Log recibido:", log);
+
+        if (log.includes("Recibido evento de interrupción") || 
+            log.includes("interrupción") || 
+            log.includes("Agente") || 
+            log.includes("interrupting")) {
+          console.log("[WebSocket] Comando de interrupción detectado en logs");
+          AudioProcessor.clearAudioQueues();
+        }
+
+        UIController.addLog(log);
+
+        // Detectar si un agente tomó o dejó el control
+        if (log.includes("[INFO] Un agente ha tomado el control de la conversación")) {
+          UIController.addLog("[INFO] Un agente humano está controlando la conversación");
+          AudioProcessor.clearAudioQueues();
+        } else if (log.includes("[INFO] El agente ha dejado el control de la conversación")) {
+          UIController.addLog("[INFO] El bot ha retomado el control de la conversación");
+        }
+
+        // Manejar transcripciones para el chat
+        if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
+          const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
+          // Determinar si es un mensaje de agente humano o del bot
+          const isFromHumanAgent = log.includes("[AGENT]");
+          UIController.addChatMessage(messageText, true, isFromHumanAgent);
+          UIController.updateConnectionStatus(true);
+        } else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
+          const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
+          UIController.addChatMessage(messageText, false);
+        } else if (log.includes("[LOG] [AgentVoice]")) {
+          // Capturar mensajes específicos del agente
+          if (log.includes("Respuesta sintetizada:") || log.includes("Mensaje del agente:")) {
+            // Extraer el mensaje del log
+            let messageText;
+            if (log.includes("Respuesta sintetizada:")) {
+              messageText = log.replace(/.*Respuesta sintetizada: /g, "").trim();
+            } else {
+              messageText = log.replace(/.*Mensaje del agente: /g, "").trim();
+            }
+            // Añadir el mensaje al chat como agente humano
+            UIController.addChatMessage(messageText, true, true);
+          }
+        }
+      },
+
+      // Callback onOpen
+      function() {
+        UIController.addLog('[INFO] Conexión a logs establecida\n');
+      },
+
+      // Callback onClose
+      function() {
+        UIController.addLog('[Conexión a logs cerrada]\n');
+        UIController.updateConnectionStatus(false);
       }
-    },
-
-    // Callback onOpen
-    function() {
-      UIController.addLog('[INFO] Conexión a logs establecida\n');
-    },
-
-    // Callback onClose
-    function() {
-      UIController.addLog('[Conexión a logs cerrada]\n');
-      UIController.updateConnectionStatus(false);
-    }
-  );
+    );
+  } catch (error) {
+    console.error("Error al configurar WebSocket:", error);
+    UIController.addLog('[ERROR] No se pudo establecer la conexión WebSocket\n');
+  }
 }

@@ -4,29 +4,46 @@ const WebSocketHandler = (() => {
   let logsWebSocket = null;
   let sessionId = null;
 
-  // Generar o recuperar el sessionId
-  function getSessionId() {
-    if (!sessionId) {
-      // Intentar recuperar de localStorage
-      sessionId = localStorage.getItem('callBotSessionId');
-
-      // Si no existe, generar uno nuevo
-      if (!sessionId) {
-        sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-        localStorage.setItem('callBotSessionId', sessionId);
+  // Solicitar un nuevo sessionId desde el servidor
+  async function requestSessionId() {
+    try {
+      const response = await fetch('/create-session');
+      if (!response.ok) {
+        throw new Error(`Error requesting session: ${response.status} ${response.statusText}`);
       }
-    }
 
+      const data = await response.json();
+      if (data.success && data.sessionId) {
+        sessionId = data.sessionId;
+        console.log(`[WebSocketHandler] Nuevo sessionId obtenido del servidor: ${sessionId}`);
+        return sessionId;
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error) {
+      console.error('[WebSocketHandler] Error obteniendo sessionId:', error);
+      // Fallback: generar un ID único local en caso de error
+      sessionId = `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      console.warn(`[WebSocketHandler] Usando sessionId local de emergencia: ${sessionId}`);
+      return sessionId;
+    }
+  }
+
+  // Obtener el sessionId actual, o solicitar uno nuevo si no existe
+  async function getSessionId() {
+    if (!sessionId) {
+      await requestSessionId();
+    }
     return sessionId;
   }
 
   // Conectar al WebSocket de logs
-  function connectToLogsWebSocket(onMessageCallback, onOpenCallback, onCloseCallback) {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  async function connectToLogsWebSocket(onMessageCallback, onOpenCallback, onCloseCallback) {
+    // Asegurar que tenemos un sessionId válido antes de conectar
+    await getSessionId();
 
-    // Incluir sessionId como parámetro de consulta
-    const wsSessionId = getSessionId();
-    logsWebSocket = new WebSocket(`${wsProtocol}//${window.location.host}/logs-websocket?sessionId=${wsSessionId}`);
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    logsWebSocket = new WebSocket(`${wsProtocol}//${window.location.host}/logs-websocket?sessionId=${sessionId}`);
 
     logsWebSocket.onopen = function() {
       if (onOpenCallback) onOpenCallback();

@@ -25,11 +25,19 @@ Este proyecto es un sistema de call center con IA que permite realizar llamadas 
 - `/services`: Servicios para interactuar con APIs externas (Twilio, ElevenLabs).
 - `/utils`: Utilidades para procesamiento de audio, gestión de sesiones, etc.
 - `/views`: Frontend de la aplicación (HTML, CSS, JavaScript).
+- `/data`: Almacenamiento persistente para datos de llamadas históricas.
 
 ## Componentes Clave y Su Función
 
 ### Gestión de Sesiones
-El sistema utiliza un gestor de sesiones (`sessionManager.js`) para mantener aisladas las conexiones de diferentes clientes, garantizando que los mensajes y audio se envíen solo a las conexiones pertinentes.
+El sistema utiliza un gestor de sesiones (`sessionManager.js`) para mantener aisladas las conexiones de diferentes clientes, garantizando que los mensajes y audio se envíen solo a las conexiones pertinentes. Las sesiones almacenan también el historial de transcripciones para acceso posterior.
+
+### Almacenamiento de Llamadas
+El sistema cuenta con un servicio de almacenamiento de llamadas (`callStorageService.js`) que:
+- Mantiene registro de todas las llamadas activas en memoria
+- Guarda llamadas finalizadas recientes (últimos 30 minutos) en memoria para acceso rápido
+- Persiste en archivo JSON las llamadas finalizadas para liberar memoria
+- Limpia automáticamente llamadas antiguas (más de 30 minutos) en intervalos regulares
 
 ### Procesamiento de Audio
 Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) para mejorar la calidad de voz, incluyendo:
@@ -37,6 +45,7 @@ Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) p
 - Compresión dinámica
 - Filtrado de ruido
 - Detección de actividad de voz
+- Métricas de latencia para monitoreo de calidad
 
 ### Manejo de WebSockets
 Múltiples conexiones WebSocket para:
@@ -54,6 +63,30 @@ Utiliza la API de ElevenLabs para:
 - Realización de llamadas salientes
 - Transmisión de audio bidireccional
 - Manejo de TwiML para control de llamadas
+
+## Dashboard de Administración
+El sistema incluye un dashboard de administración que permite:
+- Visualizar todas las llamadas activas y finalizadas recientes (últimos 30 minutos)
+- Alternar entre vista de llamadas activas y llamadas recientes mediante pestañas
+- Monitorear transcripciones de conversaciones en tiempo real
+- Terminar llamadas desde la interfaz
+- Ver estadísticas de uso del sistema
+- Verificar el estado de las conexiones
+- Refrescar automáticamente las transcripciones de llamadas activas
+
+### Características del Dashboard
+- Manejo optimizado de UI para evitar errores de DOM al finalizar llamadas
+- Persistencia de llamadas finalizadas en archivo para optimizar uso de memoria
+- Limpieza automática de llamadas antiguas (más de 30 minutos)
+- Notificaciones en tiempo real de cambios en las llamadas
+- Visualización de métricas como duración, estado y participación de agente
+
+## Sistema de Transcripciones
+- Almacenamiento centralizado de transcripciones en el servidor por sesión y llamada
+- Diferenciación entre mensajes del cliente, bot y agente humano
+- Visualización en tiempo real con marcas de tiempo
+- API dedicada para consultar y actualizar transcripciones
+- Auto-refresco configurable en el panel de administración
 
 ## Patrones de Código
 
@@ -122,6 +155,22 @@ try {
 }
 ```
 
+### Manejo Seguro del DOM
+Utilizamos verificación doble para operaciones del DOM que pueden ser problemáticas:
+```javascript
+// Verificar que la tarjeta existe antes de intentar eliminarla
+const card = document.getElementById(`call-${id}`);
+if (card) {
+  // Añadir clase para animar la salida
+  card.classList.add('opacity-0', 'transform', 'scale-95');
+  setTimeout(() => {
+    if (document.getElementById(`call-${id}`)) { // Verificar de nuevo antes de eliminar
+      card.remove();
+    }
+  }, 300);
+}
+```
+
 ## Variables de Entorno
 El sistema utiliza las siguientes variables de entorno:
 - `PORT`: Puerto del servidor (default: 8000)
@@ -166,6 +215,72 @@ curl -X POST http://localhost:8000/end-call \
   }'
 ```
 
+#### Terminar Sesión
+```bash
+curl -X POST http://localhost:8000/terminate-session \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "session_id_para_terminar"
+  }'
+```
+
+#### Obtener Transcripciones
+```bash
+curl -X GET http://localhost:8000/session-transcripts?sessionId=session_id_a_consultar
+```
+
+#### Añadir Transcripción
+```bash
+curl -X POST http://localhost:8000/add-transcript \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "session_id_destino",
+    "text": "Texto de la transcripción",
+    "speakerType": "bot"
+  }'
+```
+
+#### Obtener Todas las Llamadas
+```bash
+curl -X GET http://localhost:8000/api/calls
+```
+
+#### Obtener Detalles de una Llamada
+```bash
+curl -X GET http://localhost:8000/api/calls/session_id_de_llamada
+```
+
+#### Obtener Transcripciones de una Llamada
+```bash
+curl -X GET http://localhost:8000/api/calls/session_id_de_llamada/transcriptions
+```
+
+## Interfaz de Usuario
+
+### Vista Principal (Agente)
+- Formulario para iniciar llamadas
+- Monitor de audio en tiempo real con métricas de latencia
+- Panel de transcripción de la conversación
+- Controles para:
+  - Iniciar/finalizar llamadas
+  - Monitorear audio
+  - Tomar/dejar control como agente humano
+
+### Dashboard (Administrador)
+- Visualización de llamadas activas y finalizadas recientes
+- Filtros por pestañas para alternar entre llamadas activas y recientes
+- Visualización de transcripciones por llamada
+- Controles para terminar llamadas
+- Panel de logs del sistema
+- Opciones de refresco automático para datos en tiempo real
+- Almacenamiento persistente de datos históricos con limpieza automática
+
+## Monitoreo de Rendimiento
+El sistema incluye métricas de latencia de audio que se actualizan cada 5 fragmentos de audio recibidos, proporcionando información sobre:
+- Latencia promedio (últimas 10 muestras)
+- Valores mínimos y máximos de latencia
+- Cantidad de fragmentos de audio procesados
+
 ## Convenciones de Código
 
 ### Nombres de Archivos
@@ -185,6 +300,7 @@ curl -X POST http://localhost:8000/end-call \
 - Comillas simples para strings
 - Arrow functions para callbacks anónimos
 - `const` por defecto, `let` cuando sea necesario
+- Módulos ES6 con `import/export` en el backend
 
 ### Patrones de Comentarios
 ```javascript
@@ -210,6 +326,8 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 3. Optimización del procesamiento de audio en tiempo real
 4. Mejor gestión de errores en caso de fallo en servicios externos
 5. Implementación de análisis de sentimiento en tiempo real
+6. Optimización de la persistencia de datos de llamadas para entornos de producción
+7. Implementación de Tailwind como dependencia en lugar de CDN para entornos de producción
 
 ## Recursos Útiles
 - [Documentación de Twilio Media Streams](https://www.twilio.com/docs/voice/twiml/stream)
@@ -224,3 +342,7 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 - **Bot**: Sistema automatizado que maneja la conversación inicialmente
 - **Media Stream**: Flujo bidireccional de audio entre el sistema y Twilio
 - **TwiML**: Lenguaje de marcado XML específico de Twilio para controlar llamadas
+- **Latencia de Audio**: Medida del tiempo transcurrido entre fragmentos de audio consecutivos
+- **Transcripción**: Texto generado a partir del audio del cliente o del bot/agente
+- **Persistencia de Llamadas**: Sistema para almacenar y recuperar datos de llamadas históricas
+- **Limpieza Automática**: Proceso que elimina datos antiguos para optimizar el uso de recursos
