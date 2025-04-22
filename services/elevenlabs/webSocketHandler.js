@@ -9,12 +9,18 @@ import { broadcastToSession } from "../../utils/sessionManager.js";
  * @param {Object} state - Estado de la conexión (streamSid, callSid)
  * @param {Object} message - Mensaje recibido desde ElevenLabs
  */
-export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, message) => {
+export const handleElevenLabsMessage = async (
+  elevenLabsWs,
+  twilioWs,
+  state,
+  message,
+) => {
   try {
     switch (message.type) {
       case "conversation_initiation_metadata":
-        console.log("[ElevenLabs] Recibido metadata de iniciación", 
-          { sessionId: state.sessionId });
+        console.log("[ElevenLabs] Recibido metadata de iniciación", {
+          sessionId: state.sessionId,
+        });
         break;
 
       case "audio":
@@ -22,14 +28,22 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
         break;
 
       case "interruption":
-        console.log("[ElevenLabs] Recibido evento de interrupción", 
-          { sessionId: state.sessionId });
+        console.log("[ElevenLabs] Recibido evento de interrupción", {
+          sessionId: state.sessionId,
+        });
+
+        // Notificar a los clientes del frontend sobre la interrupción
+        broadcastToSession(state.sessionId, {
+          type: "interruption",
+          message: "Bot interrumpido por el agente",
+        });
+
         if (state.streamSid) {
           twilioWs.send(
             JSON.stringify({
               event: "clear",
               streamSid: state.streamSid,
-            })
+            }),
           );
         }
         break;
@@ -40,7 +54,7 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
             JSON.stringify({
               type: "pong",
               event_id: message.ping_event.event_id,
-            })
+            }),
           );
         }
         break;
@@ -48,26 +62,67 @@ export const handleElevenLabsMessage = async (elevenLabsWs, twilioWs, state, mes
       case "agent_response":
         console.log(
           `[Twilio] Respuesta del agente: ${message.agent_response_event?.agent_response}`,
-          { sessionId: state.sessionId }
+          { sessionId: state.sessionId },
         );
         break;
 
       case "user_transcript":
         console.log(
           `[Twilio] Transcripción del usuario: ${message.user_transcription_event?.user_transcript}`,
-          { sessionId: state.sessionId }
+          { sessionId: state.sessionId },
         );
+        break;
+
+      case "agent_transcript_result":
+        // Nuevo: Manejar la transcripción del audio del agente humano
+        if (message.transcript && message.transcript.text) {
+          console.log(
+            `[AgentVoice] Transcripción recibida: ${message.transcript.text}`,
+            { sessionId: state.sessionId },
+          );
+
+          // Enviar la transcripción a los clientes para mostrarla en la interfaz
+          broadcastToSession(state.sessionId, {
+            type: "agent_speech",
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            text: message.transcript.text,
+            isAgent: true,
+          });
+        }
+        break;
+
+      case "agent_speech_ready":
+        // Nuevo: Manejar el audio sintetizado del texto del agente
+        if (message.audio_event && message.audio_event.audio_base_64) {
+          console.log(
+            "[AgentVoice] Audio sintetizado recibido para agente humano",
+            { sessionId: state.sessionId },
+          );
+
+          // Enviar el audio sintetizado a Twilio para reproducir al cliente
+          await handleAudioMessage(twilioWs, state, {
+            audio: { chunk: message.audio_event.audio_base_64 },
+          });
+
+          // Marcar el mensaje como proveniente del agente humano para la interfaz
+          broadcastToSession(state.sessionId, {
+            type: "agent_speech",
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            text: message.original_text || "Mensaje del agente",
+          });
+        }
         break;
 
       default:
         console.log(
           `[ElevenLabs] Tipo de mensaje no manejado: ${message.type}`,
-          { sessionId: state.sessionId }
+          { sessionId: state.sessionId },
         );
     }
   } catch (error) {
-    console.error("[ElevenLabs] Error procesando mensaje:", error, 
-      { sessionId: state.sessionId });
+    console.error("[ElevenLabs] Error procesando mensaje:", error, {
+      sessionId: state.sessionId,
+    });
   }
 };
 
@@ -81,9 +136,6 @@ async function handleAudioMessage(twilioWs, state, message) {
   if (state.streamSid) {
     const payload = message.audio?.chunk || message.audio_event?.audio_base_64;
     if (payload) {
-      console.log("[ElevenLabs] Audio chunk recibido", 
-        { sessionId: state.sessionId });
-
       // Generar un ID único para este fragmento de audio
       const audioId = Date.now() + Math.random().toString(36).substr(2, 9);
 
@@ -102,13 +154,14 @@ async function handleAudioMessage(twilioWs, state, message) {
         broadcastToSession(state.sessionId, {
           type: "audio",
           id: audioId,
-          payload
+          payload,
         });
       }
     }
   } else {
-    console.log("[ElevenLabs] Recibido audio pero aún no hay streamSid", 
-      { sessionId: state.sessionId });
+    console.log("[ElevenLabs] Recibido audio pero aún no hay streamSid", {
+      sessionId: state.sessionId,
+    });
   }
 }
 
@@ -139,12 +192,18 @@ export const sendInitialConfig = (elevenLabsWs, customParameters) => {
         tts: {
           voice_id: voiceId || "",
         },
+        // Permitir que el agente humano pueda enviar audio y tomar el control
+        agent_control: {
+          enabled: true,
+          allow_agent_audio: true,
+        },
       },
     };
 
     elevenLabsWs.send(JSON.stringify(initialConfig));
   } catch (error) {
-    console.error("[ElevenLabs] Error enviando configuración inicial:", error, 
-      { sessionId: elevenLabsWs.sessionId });
+    console.error("[ElevenLabs] Error enviando configuración inicial:", error, {
+      sessionId: elevenLabsWs.sessionId,
+    });
   }
 };

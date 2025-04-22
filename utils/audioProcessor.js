@@ -215,9 +215,6 @@ export function processAudioForSpeechRecognition(base64Data) {
 
     // Si no hay voz detectada, aplicar solo una amplificación ligera
     if (!hasVoice) {
-      if (shouldLog) {
-        console.log("[AudioProcessor] No se detectó voz, aplicando solo amplificación");
-      }
       return amplifyAudio(base64Data, 1.5);
     }
 

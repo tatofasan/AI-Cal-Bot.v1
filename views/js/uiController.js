@@ -5,6 +5,9 @@ const UIController = (() => {
     callButton: document.getElementById('callButton'),
     monitorButton: document.getElementById('monitorAudioButton'),
     monitorIcon: document.getElementById('monitorIcon'),
+    takeoverButton: document.getElementById('takeoverButton'),
+    takeoverIcon: document.getElementById('takeoverIcon'),
+    takeoverButtonText: document.getElementById('takeoverButtonText'),
     statusIndicator: document.getElementById('statusIndicator'),
     statusText: document.getElementById('statusText'),
     chatBox: document.getElementById('chatBox'),
@@ -16,6 +19,7 @@ const UIController = (() => {
 
   // Estado de la UI
   let currentCallSid = null;
+  let agentActive = false;
 
   // Actualizar el ícono del botón de monitoreo según su estado
   function updateMonitorIcon(isMonitoring) {
@@ -35,6 +39,35 @@ const UIController = (() => {
     elements.monitorIcon = document.getElementById('monitorIcon');
   }
 
+  // Actualizar el botón de toma de control según su estado
+  function updateTakeoverButton(isActive) {
+    if (isActive) {
+      elements.takeoverButton.classList.remove("bg-yellow-500", "hover:bg-yellow-600");
+      elements.takeoverButton.classList.add("bg-red-500", "hover:bg-red-600");
+      elements.takeoverButtonText.textContent = "Dejar control";
+      agentActive = true;
+    } else {
+      elements.takeoverButton.classList.remove("bg-red-500", "hover:bg-red-600");
+      elements.takeoverButton.classList.add("bg-yellow-500", "hover:bg-yellow-600");
+      elements.takeoverButtonText.textContent = "Tomar control";
+      agentActive = false;
+    }
+  }
+
+  // Activar o desactivar el botón de toma de control
+  function enableTakeoverButton(enabled) {
+    elements.takeoverButton.disabled = !enabled;
+    if (enabled) {
+      elements.takeoverButton.classList.remove("opacity-50", "cursor-not-allowed");
+    } else {
+      elements.takeoverButton.classList.add("opacity-50", "cursor-not-allowed");
+      // Si estaba activo, desactivarlo
+      if (agentActive) {
+        updateTakeoverButton(false);
+      }
+    }
+  }
+
   // Actualizar estado del botón de llamada según estado actual
   function updateCallButton(isActive, isLoading = false) {
     if (isLoading) {
@@ -50,11 +83,15 @@ const UIController = (() => {
       elements.callButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
       elements.statusIndicator.classList.replace('bg-red-500', 'bg-green-500');
       elements.statusText.textContent = 'Conectado';
+      // Habilitar el botón de toma de control cuando hay una llamada activa
+      enableTakeoverButton(true);
     } else {
       // Sin llamada activa - mostrar botón de llamar
       elements.callButton.classList.remove("bg-red-500", "hover:bg-red-600");
       elements.callButton.classList.add("bg-green-500", "hover:bg-green-600");
       elements.callButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" /></svg>';
+      // Deshabilitar el botón de toma de control cuando no hay llamada activa
+      enableTakeoverButton(false);
     }
     elements.callButton.disabled = false;
   }
@@ -70,15 +107,45 @@ const UIController = (() => {
     }
   }
 
-  // Agregar mensaje al chat
-  function addChatMessage(text, isBot) {
+  // Agregar mensaje al chat con los nuevos estilos
+  function addChatMessage(text, isBot, isAgent = false) {
     const messageDiv = document.createElement("div");
+
     if (isBot) {
+      // Mensajes del bot o agente
       messageDiv.className = "chat-message server bg-gray-200 p-2 rounded-lg mb-2 max-w-[70%]";
+
+      // Indicador visual según si es agente o bot
+      if (isAgent) {
+        // Estilo para el agente (amarillo)
+        messageDiv.classList.add("border-l-4", "border-yellow-500");
+        const agentIndicator = document.createElement("div");
+        agentIndicator.className = "text-xs text-yellow-600 font-bold mb-1";
+        agentIndicator.textContent = "Agente";
+        messageDiv.prepend(agentIndicator);
+      } else {
+        // Estilo para el bot (azul)
+        messageDiv.classList.add("border-l-4", "border-blue-500");
+        const botIndicator = document.createElement("div");
+        botIndicator.className = "text-xs text-blue-600 font-bold mb-1";
+        botIndicator.textContent = "Bot";
+        messageDiv.prepend(botIndicator);
+      }
     } else {
-      messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto";
+      // Mensajes del cliente (verde)
+      messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto border-r-4 border-green-500";
+
+      // Agregar indicador para el cliente
+      const clientIndicator = document.createElement("div");
+      clientIndicator.className = "text-xs text-green-600 font-bold mb-1 text-right";
+      clientIndicator.textContent = "Cliente";
+      messageDiv.prepend(clientIndicator);
     }
-    messageDiv.textContent = text;
+
+    const textContainer = document.createElement("div");
+    textContainer.textContent = text;
+    messageDiv.appendChild(textContainer);
+
     elements.chatBox.appendChild(messageDiv);
     elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
   }
@@ -116,10 +183,17 @@ const UIController = (() => {
     return currentCallSid;
   }
 
+  // Verificar si el agente está activo
+  function isAgentActive() {
+    return agentActive;
+  }
+
   // API pública
   return {
     elements,
     updateMonitorIcon,
+    updateTakeoverButton,
+    enableTakeoverButton,
     updateCallButton,
     updateConnectionStatus,
     addChatMessage,
@@ -127,7 +201,8 @@ const UIController = (() => {
     addLog,
     getCallFormData,
     setCurrentCallSid,
-    getCurrentCallSid
+    getCurrentCallSid,
+    isAgentActive
   };
 })();
 

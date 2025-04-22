@@ -31,6 +31,11 @@ export default async function outboundCallRoutes(fastify, options) {
     return handleJsFileRoute(request, reply, "main.js");
   });
 
+  // Nuevo: Ruta para servir el archivo del agente de voz
+  fastify.get("/js/agentVoiceCapture.js", (request, reply) => {
+    return handleJsFileRoute(request, reply, "agentVoiceCapture.js");
+  });
+
   // Ruta para iniciar la llamada
   fastify.post("/outbound-call", initiateCall);
 

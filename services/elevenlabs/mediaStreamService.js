@@ -60,10 +60,18 @@ export const setupMediaStream = async (ws, sessionId) => {
       }
 
       // Si tenemos un evento 'start', verificar los parámetros personalizados para el sessionId
-      if (msg.event === 'start' && msg.start && msg.start.customParameters) {
+      if (msg.event === 'start' && msg.start) {
+        // Si tenemos un streamSid, guardarlo en el objeto ws Y en el estado para que el agente pueda usarlo
+        if (msg.start.streamSid) {
+          state.streamSid = msg.start.streamSid;
+          ws.streamSid = msg.start.streamSid; // IMPORTANTE: Guardar en el objeto WebSocket
+          console.log(`[Twilio] Guardando streamSid ${ws.streamSid} en el WebSocket`, 
+            { sessionId });
+        }
+
         // Si hay un sessionId en los parámetros personalizados y no coincide con el actual,
         // actualizar el sessionId
-        if (msg.start.customParameters.sessionId && 
+        if (msg.start.customParameters && msg.start.customParameters.sessionId && 
             msg.start.customParameters.sessionId !== sessionId) {
           const newSessionId = msg.start.customParameters.sessionId;
           console.log(`[Twilio] Actualizando sessionId de ${sessionId} a ${newSessionId}`);
@@ -79,6 +87,17 @@ export const setupMediaStream = async (ws, sessionId) => {
           // Actualizar la referencia para logs futuros
           sessionId = newSessionId;
         }
+
+        // Extraer y guardar los parámetros personalizados
+        if (msg.start.customParameters) {
+          state.customParameters = msg.start.customParameters;
+          console.log("[Twilio] Parámetros personalizados recibidos", 
+            { sessionId: state.sessionId });
+        }
+
+        // Imprimir un mensaje detallado al iniciar el stream
+        console.log(`[Twilio] Stream iniciado - StreamSid: ${state.streamSid}, SessionId: ${sessionId}`, 
+          { sessionId });
       }
 
       // Usar la función de manejo de mensajes de Twilio

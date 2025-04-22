@@ -46,12 +46,67 @@ const WebSocketHandler = (() => {
     };
 
     logsWebSocket.onmessage = function(event) {
-      if (onMessageCallback) onMessageCallback(event);
+      // Procesar el mensaje antes de pasarlo al callback
+      try {
+        let data = event.data;
+
+        // Intentar parsear como JSON si es posible
+        try {
+          data = JSON.parse(event.data);
+
+          // Detectar comando de interrupción
+          if (data.type === "interruption" || 
+              (data.type === "log" && data.message && data.message.includes("interrupción")) ||
+              (typeof data === 'string' && data.includes("interrupción"))) {
+
+            console.log("[WebSocketHandler] Recibido comando de interrupción, limpiando colas de audio");
+
+            // Limpiar cualquier audio reproduciéndose en el cliente
+            if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+              window.AudioProcessor.clearAudioQueues();
+            }
+          }
+        } catch (e) {
+          // No es JSON, verificar si contiene texto de interrupción
+          if (typeof event.data === 'string' && 
+              (event.data.includes("interrupción") || 
+               event.data.includes("Interruption") || 
+               event.data.includes("Agente"))) {
+
+            console.log("[WebSocketHandler] Mensaje de interrupción detectado:", event.data);
+
+            // Limpiar cualquier audio reproduciéndose en el cliente
+            if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+              window.AudioProcessor.clearAudioQueues();
+            }
+          }
+        }
+
+        // Continuar con el procesamiento normal
+        if (onMessageCallback) onMessageCallback(event);
+      } catch (error) {
+        console.error("[WebSocketHandler] Error procesando mensaje:", error);
+        // En caso de error, permitir que el callback original procese el mensaje
+        if (onMessageCallback) onMessageCallback(event);
+      }
     };
 
     logsWebSocket.onclose = function() {
       if (onCloseCallback) onCloseCallback();
     };
+  }
+
+  // Enviar mensaje a través del WebSocket
+  function sendMessage(message) {
+    if (logsWebSocket && logsWebSocket.readyState === WebSocket.OPEN) {
+      if (typeof message === 'object') {
+        logsWebSocket.send(JSON.stringify(message));
+      } else {
+        logsWebSocket.send(message);
+      }
+      return true;
+    }
+    return false;
   }
 
   // Cerrar la conexión WebSocket
@@ -64,6 +119,7 @@ const WebSocketHandler = (() => {
   // API pública
   return {
     connectToLogsWebSocket,
+    sendMessage,
     closeConnection,
     getSessionId
   };
