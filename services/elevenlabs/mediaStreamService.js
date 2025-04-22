@@ -5,8 +5,8 @@ import { handleTwilioMessage } from "./twilioHandler.js";
 import { 
   registerTwilioConnection, 
   removeTwilioConnection,
-  getSession
 } from "../../utils/sessionManager.js";
+import { getSession } from "../../services/sessionService.js";
 
 // Variable para controlar la frecuencia de los logs
 let messageLogCounter = 0;

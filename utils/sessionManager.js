@@ -1,37 +1,9 @@
 // src/utils/sessionManager.js
-
-/**
- * Gestor de sesiones para mantener aisladas las conexiones de diferentes clientes
- * 
- * Este módulo permite agrupar todas las conexiones WebSocket relacionadas
- * con una sesión específica, asegurando que los mensajes y audio se envíen
- * solo a las conexiones pertenecientes a la misma sesión.
- */
-
-// Almacenamiento de sesiones y sus conexiones asociadas
-const sessions = new Map();
-
-/**
- * Registra una nueva sesión o devuelve una existente
- * @param {string} sessionId - ID único de sesión
- * @returns {Object} - Objeto de sesión con sus conexiones
- */
-export function getOrCreateSession(sessionId) {
-  if (!sessions.has(sessionId)) {
-    sessions.set(sessionId, {
-      id: sessionId,
-      logClients: new Set(),
-      twilioWs: null,
-      elevenLabsWs: null,
-      agentWs: null,        
-      callSid: null,
-      isAgentActive: false, 
-      createdAt: Date.now()
-    });
-    console.log(`[SessionManager] Nueva sesión creada: ${sessionId}`);
-  }
-  return sessions.get(sessionId);
-}
+import { 
+  getSession, 
+  touchSession, 
+  sessionExists 
+} from '../services/sessionService.js';
 
 /**
  * Registra un cliente de logs en una sesión
@@ -39,7 +11,13 @@ export function getOrCreateSession(sessionId) {
  * @param {WebSocket} ws - Conexión WebSocket del cliente de logs
  */
 export function registerLogClient(sessionId, ws) {
-  const session = getOrCreateSession(sessionId);
+  const session = getSession(sessionId);
+  if (!session) {
+    console.error(`[SessionManager] Intento de registrar cliente de logs con sessionId inválido: ${sessionId}`);
+    ws.close(1008, "SessionId inválido");
+    return;
+  }
+
   session.logClients.add(ws);
 
   // Agregar el sessionId como propiedad del WebSocket para facilitar la limpieza
@@ -54,7 +32,13 @@ export function registerLogClient(sessionId, ws) {
  * @param {WebSocket} ws - Conexión WebSocket de Twilio
  */
 export function registerTwilioConnection(sessionId, ws) {
-  const session = getOrCreateSession(sessionId);
+  const session = getSession(sessionId);
+  if (!session) {
+    console.error(`[SessionManager] Intento de registrar conexión Twilio con sessionId inválido: ${sessionId}`);
+    ws.close(1008, "SessionId inválido");
+    return;
+  }
+
   session.twilioWs = ws;
 
   // Agregar el sessionId como propiedad del WebSocket
@@ -70,7 +54,12 @@ export function registerTwilioConnection(sessionId, ws) {
  * @param {string} callSid - SID de la llamada asociada
  */
 export function registerElevenLabsConnection(sessionId, ws, callSid) {
-  const session = getOrCreateSession(sessionId);
+  const session = getSession(sessionId);
+  if (!session) {
+    console.error(`[SessionManager] Intento de registrar conexión ElevenLabs con sessionId inválido: ${sessionId}`);
+    return;
+  }
+
   session.elevenLabsWs = ws;
   session.callSid = callSid;
 
@@ -86,7 +75,13 @@ export function registerElevenLabsConnection(sessionId, ws, callSid) {
  * @param {WebSocket} ws - Conexión WebSocket del agente
  */
 export function registerAgentConnection(sessionId, ws) {
-  const session = getOrCreateSession(sessionId);
+  const session = getSession(sessionId);
+  if (!session) {
+    console.error(`[SessionManager] Intento de registrar conexión de agente con sessionId inválido: ${sessionId}`);
+    ws.close(1008, "SessionId inválido");
+    return;
+  }
+
   session.agentWs = ws;
   session.isAgentActive = true;
 
@@ -106,14 +101,11 @@ export function registerAgentConnection(sessionId, ws) {
 export function removeLogClient(ws) {
   if (!ws.sessionId) return;
 
-  const session = sessions.get(ws.sessionId);
-  if (session) {
-    session.logClients.delete(ws);
-    console.log(`[SessionManager] Cliente de logs eliminado de sesión ${ws.sessionId}, quedan: ${session.logClients.size}`);
+  const session = getSession(ws.sessionId);
+  if (!session) return;
 
-    // Limpiar la sesión si ya no hay conexiones activas
-    cleanupSessionIfEmpty(ws.sessionId);
-  }
+  session.logClients.delete(ws);
+  console.log(`[SessionManager] Cliente de logs eliminado de sesión ${ws.sessionId}, quedan: ${session.logClients.size}`);
 }
 
 /**
@@ -123,14 +115,11 @@ export function removeLogClient(ws) {
 export function removeTwilioConnection(ws) {
   if (!ws.sessionId) return;
 
-  const session = sessions.get(ws.sessionId);
-  if (session) {
-    session.twilioWs = null;
-    console.log(`[SessionManager] Conexión Twilio eliminada de sesión ${ws.sessionId}`);
+  const session = getSession(ws.sessionId);
+  if (!session) return;
 
-    // Limpiar la sesión si ya no hay conexiones activas
-    cleanupSessionIfEmpty(ws.sessionId);
-  }
+  session.twilioWs = null;
+  console.log(`[SessionManager] Conexión Twilio eliminada de sesión ${ws.sessionId}`);
 }
 
 /**
@@ -140,14 +129,11 @@ export function removeTwilioConnection(ws) {
 export function removeElevenLabsConnection(ws) {
   if (!ws.sessionId) return;
 
-  const session = sessions.get(ws.sessionId);
-  if (session) {
-    session.elevenLabsWs = null;
-    console.log(`[SessionManager] Conexión ElevenLabs eliminada de sesión ${ws.sessionId}`);
+  const session = getSession(ws.sessionId);
+  if (!session) return;
 
-    // Limpiar la sesión si ya no hay conexiones activas
-    cleanupSessionIfEmpty(ws.sessionId);
-  }
+  session.elevenLabsWs = null;
+  console.log(`[SessionManager] Conexión ElevenLabs eliminada de sesión ${ws.sessionId}`);
 }
 
 /**
@@ -157,37 +143,15 @@ export function removeElevenLabsConnection(ws) {
 export function removeAgentConnection(ws) {
   if (!ws.sessionId) return;
 
-  const session = sessions.get(ws.sessionId);
-  if (session) {
-    session.agentWs = null;
-    session.isAgentActive = false;
-    console.log(`[SessionManager] Conexión de agente eliminada de sesión ${ws.sessionId}`);
-
-    // Notificar a los clientes de log que el agente ha dejado el control
-    broadcastToSession(ws.sessionId, "[INFO] El agente ha dejado el control de la conversación");
-
-    // Limpiar la sesión si ya no hay conexiones activas
-    cleanupSessionIfEmpty(ws.sessionId);
-  }
-}
-
-/**
- * Limpia una sesión si no tiene conexiones activas
- * @param {string} sessionId - ID de sesión a verificar
- */
-function cleanupSessionIfEmpty(sessionId) {
-  const session = sessions.get(sessionId);
+  const session = getSession(ws.sessionId);
   if (!session) return;
 
-  if (
-    session.logClients.size === 0 && 
-    !session.twilioWs && 
-    !session.elevenLabsWs &&
-    !session.agentWs
-  ) {
-    sessions.delete(sessionId);
-    console.log(`[SessionManager] Sesión ${sessionId} eliminada por inactividad`);
-  }
+  session.agentWs = null;
+  session.isAgentActive = false;
+  console.log(`[SessionManager] Conexión de agente eliminada de sesión ${ws.sessionId}`);
+
+  // Notificar a los clientes de log que el agente ha dejado el control
+  broadcastToSession(ws.sessionId, "[INFO] El agente ha dejado el control de la conversación");
 }
 
 /**
@@ -196,7 +160,7 @@ function cleanupSessionIfEmpty(sessionId) {
  * @param {string|object} message - Mensaje a enviar
  */
 export function broadcastToSession(sessionId, message) {
-  const session = sessions.get(sessionId);
+  const session = getSession(sessionId);
   if (!session) return;
 
   const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
@@ -209,18 +173,19 @@ export function broadcastToSession(sessionId, message) {
 }
 
 /**
- * Obtiene una sesión por su ID
- * @param {string} sessionId - ID de sesión
- * @returns {Object|null} - Objeto de sesión o null si no existe
+ * Valida si un sessionId existe
+ * @param {string} sessionId - ID de sesión a validar
+ * @returns {boolean} true si la sesión existe
  */
-export function getSession(sessionId) {
-  return sessions.get(sessionId) || null;
+export function validateSessionId(sessionId) {
+  return sessionExists(sessionId);
 }
 
 /**
- * Obtiene todas las sesiones activas
- * @returns {Map} - Mapa de todas las sesiones
+ * Actualiza el timestamp de última actividad de una sesión
+ * @param {string} sessionId - ID de sesión
+ * @returns {boolean} true si la sesión fue actualizada, false si no existe
  */
-export function getAllSessions() {
-  return sessions;
+export function updateSessionActivity(sessionId) {
+  return touchSession(sessionId);
 }

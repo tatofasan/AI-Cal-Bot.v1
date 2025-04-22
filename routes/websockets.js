@@ -5,17 +5,26 @@ import { logClients } from '../utils/logger.js';
 import { 
   registerLogClient, 
   removeLogClient, 
-  getOrCreateSession,
+  validateSessionId,
   registerAgentConnection,
   removeAgentConnection
 } from '../utils/sessionManager.js';
 import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
+import { getSession } from "../services/sessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
-    // Obtener sessionId del querystring o generar uno nuevo si no existe
-    const sessionId = req.query.sessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    // Obtener sessionId del querystring
+    const sessionId = req.query.sessionId;
+
+    // Validar que se proporcionó un sessionId y que sea válido
+    if (!sessionId || !validateSessionId(sessionId)) {
+      console.error("[WebSocket] Error: conexión websocket sin sessionId válido");
+      ws.send("[ERROR] Se requiere un sessionId válido para establecer la conexión");
+      ws.close(1008, "SessionId inválido o no proporcionado");
+      return;
+    }
 
     // Registrar nuevo cliente en el gestor de sesiones
     registerLogClient(sessionId, ws);
@@ -55,28 +64,14 @@ export default function websocketsRoutes(fastify, options) {
 
   // WebSocket para el media stream outbound
   fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
-    // Debugging: Registrar todas las queries recibidas
-    console.log("[Server] WebSocket query params:", req.query);
+    // Obtener sessionId del querystring
+    const sessionId = req.query.sessionId;
 
-    // Obtener sessionId del querystring o de los parámetros del Stream
-    let sessionId = req.query.sessionId;
-
-    // Comprobar si fue proporcionado como un parámetro de mensaje inicial en la conexión
-    if (!sessionId && req.body && req.body.sessionId) {
-      sessionId = req.body.sessionId;
-      console.log("[Server] sessionId obtenido del cuerpo del mensaje:", sessionId);
-    }
-
-    // Si todavía no hay sessionId, intentar obtenerlo de los headers personalizados
-    if (!sessionId && req.headers && req.headers['x-session-id']) {
-      sessionId = req.headers['x-session-id'];
-      console.log("[Server] sessionId obtenido de los headers:", sessionId);
-    }
-
-    // Si no hay sessionId, crear uno nuevo
-    if (!sessionId) {
-      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      console.log("[Server] Generando nuevo sessionId porque no se proporcionó uno:", sessionId);
+    // Validar que se proporcionó un sessionId y que sea válido
+    if (!sessionId || !validateSessionId(sessionId)) {
+      console.error("[WebSocket] Error: Media stream sin sessionId válido");
+      ws.close(1008, "SessionId inválido o no proporcionado");
+      return;
     }
 
     console.info("[Server] Conexión WebSocket para stream de medios iniciada con sessionId:", sessionId);
@@ -86,23 +81,6 @@ export default function websocketsRoutes(fastify, options) {
 
     // Configurar el media stream con el sessionId
     setupMediaStream(ws, sessionId);
-
-    // Manejar mensajes iniciales que podrían contener el sessionId
-    ws.on("message", function firstMessage(message) {
-      try {
-        const data = JSON.parse(message.toString());
-        if (data.sessionId && !ws.sessionId) {
-          console.log("[Server] sessionId recibido en primer mensaje:", data.sessionId);
-          ws.sessionId = data.sessionId;
-          // Reconfigurar el stream con el nuevo sessionId
-          setupMediaStream(ws, data.sessionId);
-        }
-        // Eliminar este handler después del primer mensaje
-        ws.removeListener("message", firstMessage);
-      } catch (e) {
-        // No es un JSON o no tiene sessionId, ignorar
-      }
-    });
   });
 
   // Nueva ruta para mensajes de texto directos (para que el agente pueda escribir mensajes)
@@ -117,8 +95,16 @@ export default function websocketsRoutes(fastify, options) {
         });
       }
 
+      // Validar que el sessionId sea válido
+      if (!validateSessionId(sessionId)) {
+        return reply.code(404).send({ 
+          success: false, 
+          error: "SessionId inválido" 
+        });
+      }
+
       // Obtener la sesión y verificar que existe
-      const session = getOrCreateSession(sessionId);
+      const session = getSession(sessionId);
       if (!session) {
         return reply.code(404).send({ 
           success: false, 
@@ -146,9 +132,11 @@ export default function websocketsRoutes(fastify, options) {
   fastify.get("/agent-voice-stream", { websocket: true }, (ws, req) => {
     // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
-    if (!sessionId) {
-      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId");
-      ws.close(1008, "SessionId requerido");
+
+    // Validar que se proporcionó un sessionId y que sea válido
+    if (!sessionId || !validateSessionId(sessionId)) {
+      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId válido");
+      ws.close(1008, "SessionId inválido o no proporcionado");
       return;
     }
 
