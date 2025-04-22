@@ -29,7 +29,7 @@ Este proyecto es un sistema de call center con IA que permite realizar llamadas 
 ## Componentes Clave y Su Función
 
 ### Gestión de Sesiones
-El sistema utiliza un gestor de sesiones (`sessionManager.js`) para mantener aisladas las conexiones de diferentes clientes, garantizando que los mensajes y audio se envíen solo a las conexiones pertinentes.
+El sistema utiliza un gestor de sesiones (`sessionManager.js`) para mantener aisladas las conexiones de diferentes clientes, garantizando que los mensajes y audio se envíen solo a las conexiones pertinentes. Las sesiones almacenan también el historial de transcripciones para acceso posterior.
 
 ### Procesamiento de Audio
 Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) para mejorar la calidad de voz, incluyendo:
@@ -63,6 +63,14 @@ El sistema incluye un dashboard de administración que permite:
 - Terminar llamadas o sesiones desde la interfaz
 - Ver estadísticas de uso del sistema
 - Verificar el estado de las conexiones
+- Refrescar automáticamente las transcripciones de llamadas activas
+
+## Sistema de Transcripciones
+- Almacenamiento centralizado de transcripciones en el servidor por sesión
+- Diferenciación entre mensajes del cliente, bot y agente humano
+- Visualización en tiempo real con marcas de tiempo
+- API dedicada para consultar y actualizar transcripciones
+- Auto-refresco configurable en el panel de administración
 
 ## Patrones de Código
 
@@ -184,6 +192,22 @@ curl -X POST http://localhost:8000/terminate-session \
   }'
 ```
 
+#### Obtener Transcripciones
+```bash
+curl -X GET http://localhost:8000/session-transcripts?sessionId=session_id_a_consultar
+```
+
+#### Añadir Transcripción
+```bash
+curl -X POST http://localhost:8000/add-transcript \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "session_id_destino",
+    "text": "Texto de la transcripción",
+    "speakerType": "bot"
+  }'
+```
+
 ## Interfaz de Usuario
 
 ### Vista Principal (Agente)
@@ -200,6 +224,7 @@ curl -X POST http://localhost:8000/terminate-session \
 - Visualización de transcripciones por sesión
 - Controles para terminar llamadas o sesiones
 - Panel de logs del sistema
+- Opciones de refresco automático para datos en tiempo real
 
 ## Monitoreo de Rendimiento
 El sistema incluye métricas de latencia de audio que se actualizan cada 5 fragmentos de audio recibidos, proporcionando información sobre:
@@ -226,6 +251,7 @@ El sistema incluye métricas de latencia de audio que se actualizan cada 5 fragm
 - Comillas simples para strings
 - Arrow functions para callbacks anónimos
 - `const` por defecto, `let` cuando sea necesario
+- Módulos ES6 con `import/export` en el backend
 
 ### Patrones de Comentarios
 ```javascript
@@ -251,6 +277,7 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 3. Optimización del procesamiento de audio en tiempo real
 4. Mejor gestión de errores en caso de fallo en servicios externos
 5. Implementación de análisis de sentimiento en tiempo real
+6. Almacenamiento persistente de transcripciones y sesiones
 
 ## Recursos Útiles
 - [Documentación de Twilio Media Streams](https://www.twilio.com/docs/voice/twiml/stream)
@@ -266,3 +293,4 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 - **Media Stream**: Flujo bidireccional de audio entre el sistema y Twilio
 - **TwiML**: Lenguaje de marcado XML específico de Twilio para controlar llamadas
 - **Latencia de Audio**: Medida del tiempo transcurrido entre fragmentos de audio consecutivos
+- **Transcripción**: Texto generado a partir del audio del cliente o del bot/agente
