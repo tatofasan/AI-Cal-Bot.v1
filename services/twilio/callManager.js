@@ -6,6 +6,7 @@ import {
   DEFAULT_TO_PHONE_NUMBER 
 } from "./twilioConfig.js";
 import { APP_PUBLIC_URL } from '../config/appConfig.js';
+import { registerCall } from '../callStorageService.js';
 
 /**
  * Inicia una llamada saliente a través de Twilio
@@ -65,6 +66,22 @@ export const initiateCall = async ({ user_name, to_number, voice_id, voice_name,
     const call = await twilioClient.calls.create(callOptions);
 
     console.log("[Twilio] Llamada iniciada con éxito:", call.sid, sessionContext);
+
+    // Registrar la llamada en el sistema de almacenamiento
+    if (sessionId) {
+      console.log("[Twilio] Registrando llamada en callStorageService:", sessionId, call.sid);
+      registerCall({
+        sessionId,
+        callSid: call.sid,
+        phoneNumber: destinationNumber,
+        userName: user_name,
+        voiceId: voice_id,
+        voiceName: voice_name,
+        status: 'active',
+        startTime: Date.now()
+      });
+    }
+
     return {
       success: true,
       message: "Call initiated",
@@ -97,6 +114,7 @@ export const endCall = async (callSid, sessionId) => {
   try {
     const call = await twilioClient.calls(callSid).update({ status: "completed" });
     console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`, sessionContext);
+
     return {
       success: true,
       message: `Call ${callSid} ended`,

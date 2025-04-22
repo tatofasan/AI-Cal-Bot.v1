@@ -1,5 +1,6 @@
 // services/sessionService.js
 import { v4 as uuidv4 } from 'uuid';
+import { registerCall, updateCall, endCall, addCallTranscription } from './callStorageService.js';
 
 // Almacenamiento de sesiones: sessionId -> sessionData
 const sessions = new Map();
@@ -44,6 +45,11 @@ export function createSession(specificSessionId) {
 
   // Almacenar la sesión
   sessions.set(sessionId, session);
+
+  // Registrar la nueva sesión en el servicio de almacenamiento de llamadas
+  if (!sessionId.startsWith('session_dashboard_')) {
+    registerCall({ sessionId });
+  }
 
   console.log(`[SessionService] Nueva sesión creada: ${sessionId}`);
 
@@ -119,6 +125,12 @@ export function addTranscription(sessionId, text, speakerType) {
     session.transcriptions.shift(); // Eliminar la transcripción más antigua
   }
 
+  // También guardar la transcripción en el servicio de almacenamiento de llamadas
+  // Excluir sesiones del dashboard
+  if (!sessionId.startsWith('session_dashboard_')) {
+    addCallTranscription(sessionId, text, speakerType);
+  }
+
   return true;
 }
 
@@ -150,6 +162,11 @@ export function removeSession(sessionId) {
 
   // Cerrar todas las conexiones WebSocket asociadas
   closeSessionConnections(session);
+
+  // Si hay un callSid asociado, registrar el fin de la llamada
+  if (session.callSid && !sessionId.startsWith('session_dashboard_')) {
+    endCall(sessionId, { callSid: session.callSid });
+  }
 
   // Eliminar la sesión del almacenamiento
   sessions.delete(sessionId);
@@ -221,6 +238,12 @@ function cleanupInactiveSessions() {
 
     if (inactiveTime > CONFIG.SESSION_TIMEOUT) {
       console.log(`[SessionService] Eliminando sesión inactiva: ${sessionId} (inactiva por ${Math.round(inactiveTime/1000)} segundos)`);
+
+      // Si hay un callSid asociado, registrar el fin de la llamada
+      if (session.callSid && !sessionId.startsWith('session_dashboard_')) {
+        endCall(sessionId, { callSid: session.callSid, reason: "inactivity_timeout" });
+      }
+
       removeSession(sessionId);
     }
   });
@@ -234,25 +257,28 @@ export function getSessionStats() {
   // Obtener información básica de todas las sesiones
   const sessionInfo = [];
   sessions.forEach((session, id) => {
-    sessionInfo.push({
-      id: session.id,
-      createdAt: session.createdAt,
-      lastActivity: session.lastActivity,
-      callSid: session.callSid,
-      isAgentActive: session.isAgentActive,
-      transcriptCount: session.transcriptions ? session.transcriptions.length : 0,
-      connections: {
-        logClients: session.logClients ? session.logClients.size : 0,
-        hasTwilioConnection: !!session.twilioWs,
-        hasElevenLabsConnection: !!session.elevenLabsWs,
-        hasAgentConnection: !!session.agentWs
-      }
-    });
+    // Excluir sesiones del dashboard
+    if (!id.startsWith('session_dashboard_')) {
+      sessionInfo.push({
+        id: session.id,
+        createdAt: session.createdAt,
+        lastActivity: session.lastActivity,
+        callSid: session.callSid,
+        isAgentActive: session.isAgentActive,
+        transcriptCount: session.transcriptions ? session.transcriptions.length : 0,
+        connections: {
+          logClients: session.logClients ? session.logClients.size : 0,
+          hasTwilioConnection: !!session.twilioWs,
+          hasElevenLabsConnection: !!session.elevenLabsWs,
+          hasAgentConnection: !!session.agentWs
+        }
+      });
+    }
   });
 
   return {
-    totalSessions: sessions.size,
-    sessions: Array.from(sessions.keys()),
+    totalSessions: sessionInfo.length, // Solo contar sesiones no-dashboard
+    sessions: sessionInfo.map(s => s.id),
     sessionInfo: sessionInfo,
     config: {
       sessionTimeoutMs: CONFIG.SESSION_TIMEOUT,

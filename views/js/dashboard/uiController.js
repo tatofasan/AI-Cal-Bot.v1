@@ -3,13 +3,17 @@ const UIController = (() => {
   // Elementos DOM y estado de la UI
   const elements = {
     // Estadísticas
-    activeSessionsCount: document.getElementById('activeSessionsCount'),
     activeCallsCount: document.getElementById('activeCallsCount'),
+    recentCallsCount: document.getElementById('recentCallsCount'),
     activeAgentsCount: document.getElementById('activeAgentsCount'),
 
+    // Tabs
+    tabActiveCalls: document.getElementById('tab-active-calls'),
+    tabRecentCalls: document.getElementById('tab-recent-calls'),
+
     // Contenedores
-    sessionsContainer: document.getElementById('sessionsContainer'),
-    noSessionsMessage: document.getElementById('noSessionsMessage'),
+    callsContainer: document.getElementById('callsContainer'),
+    noCallsMessage: document.getElementById('noCallsMessage'),
     systemLogs: document.getElementById('systemLogs'),
 
     // Estado de conexión
@@ -21,49 +25,43 @@ const UIController = (() => {
     toast: document.getElementById('toast'),
 
     // Elementos de transcripción
-    sessionSelector: document.getElementById('sessionSelector'),
+    callSelector: document.getElementById('callSelector'),
     transcriptContainer: document.getElementById('transcriptContainer')
   };
 
-  // Mapa para almacenar las sesiones mostradas
-  let displayedSessions = new Map();
+  // Mapa para almacenar las llamadas mostradas
+  let displayedCalls = new Map();
 
-  // Mapa para almacenar transcripciones por sesión
-  let sessionTranscripts = new Map();
+  // Mapa para almacenar transcripciones por llamada
+  let callTranscripts = new Map();
 
-  // Sesión seleccionada actualmente para mostrar transcripciones
-  let currentSelectedSession = null;
+  // Llamada seleccionada actualmente para mostrar transcripciones
+  let currentSelectedCall = null;
 
   // Flag para controlar la actualización automática de transcripciones
   let autoRefreshTranscriptsEnabled = false;
   let autoRefreshInterval = null;
 
   // Actualizar estadísticas generales
-  function updateStats(stats) {
-    if (!stats) return;
+  function updateStats(data) {
+    if (!data || !data.calls) return;
 
-    // Contar sesiones activas
-    elements.activeSessionsCount.textContent = stats.totalSessions || 0;
+    const now = Date.now();
+    const thirtyMinsAgo = now - (30 * 60 * 1000);
 
-    // Contar llamadas activas (sesiones con callSid)
-    let callCount = 0;
-    let agentCount = 0;
+    // Filtrar llamadas activas y recientes
+    const activeCalls = data.calls.filter(call => call.status === 'active');
+    const recentEndedCalls = data.calls.filter(call => 
+        call.status === 'ended' && 
+        call.endTime > thirtyMinsAgo);
 
-    // Procesar estadísticas detalladas si están disponibles
-    if (stats.sessionDetails && Array.isArray(stats.sessionDetails)) {
-      stats.sessionDetails.forEach(session => {
-        if (session.callSid) callCount++;
-        if (session.isAgentActive) agentCount++;
-      });
-    } else if (stats.sessionInfo && Array.isArray(stats.sessionInfo)) {
-      stats.sessionInfo.forEach(session => {
-        if (session.callSid) callCount++;
-        if (session.isAgentActive) agentCount++;
-      });
-    }
+    // Contar agentes activos
+    const activeAgents = activeCalls.filter(call => call.isAgentActive).length;
 
-    elements.activeCallsCount.textContent = callCount;
-    elements.activeAgentsCount.textContent = agentCount;
+    // Actualizar contadores
+    elements.activeCallsCount.textContent = activeCalls.length;
+    elements.recentCallsCount.textContent = recentEndedCalls.length;
+    elements.activeAgentsCount.textContent = activeAgents;
   }
 
   // Formatear tiempo relativo
@@ -86,160 +84,219 @@ const UIController = (() => {
     }
   }
 
-  // Crear o actualizar una tarjeta de sesión
-  function updateSessionCard(session) {
-    const sessionId = session.id;
-    const isNewSession = !displayedSessions.has(sessionId);
+  // Formatear duración
+  function formatDuration(durationMs) {
+    if (!durationMs) return '--:--';
+
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  // Crear o actualizar una tarjeta de llamada
+  function updateCallCard(call) {
+    const callId = call.id;
+    const isNewCall = !displayedCalls.has(callId);
     let card;
 
-    if (isNewSession) {
+    if (isNewCall) {
       // Crear una nueva tarjeta
       card = document.createElement('div');
-      card.id = `session-${sessionId}`;
-      card.className = 'session-card bg-white rounded-lg p-4 border border-gray-200 flex flex-col new-session';
-      displayedSessions.set(sessionId, session);
+      card.id = `call-${callId}`;
+      card.className = 'call-card bg-white rounded-lg p-4 border border-gray-200 flex flex-col new-call';
+      displayedCalls.set(callId, call);
 
       // Crear entrada en el mapa de transcripciones si no existe
-      if (!sessionTranscripts.has(sessionId)) {
-        sessionTranscripts.set(sessionId, []);
+      if (!callTranscripts.has(callId)) {
+        callTranscripts.set(callId, []);
       }
 
-      // Actualizar el selector de sesiones
-      updateSessionSelector();
+      // Actualizar el selector de llamadas
+      updateCallSelector();
 
-      // Mostrar notificación toast para nuevas sesiones
-      showToast('Nueva sesión detectada');
+      // Mostrar notificación toast para nuevas llamadas
+      if (call.status === 'active') {
+        showToast('Nueva llamada detectada');
+      }
     } else {
       // Actualizar tarjeta existente
-      card = document.getElementById(`session-${sessionId}`);
+      card = document.getElementById(`call-${callId}`);
       if (!card) {
-        console.error(`No se encontró la tarjeta para la sesión ${sessionId}`);
+        console.error(`No se encontró la tarjeta para la llamada ${callId}`);
         return;
       }
     }
 
-    // Determinar estado de la sesión
-    const hasActiveCall = session.callSid ? true : false;
-    const hasAgentActive = session.isAgentActive ? true : false;
+    // Determinar estado de la llamada
+    const isActive = call.status === 'active';
+    const hasAgentActive = call.isAgentActive || call.agentTakeoverCount > 0;
 
     // Obtener una versión corta del ID para mostrar
-    const shortId = sessionId.substring(0, 12);
+    const shortId = callId.substring(8, 16); // Omitir el prefijo "session_"
+
+    // Calcular duración
+    let duration = '--:--';
+    if (call.startTime) {
+      const endTime = call.endTime || Date.now();
+      duration = formatDuration(endTime - call.startTime);
+    }
+
+    // Obtener número de teléfono formateado
+    const phoneNumber = call.phoneNumber || call.to_number || 'Desconocido';
 
     // Construir contenido de la tarjeta
     card.innerHTML = `
       <div class="flex justify-between items-start mb-2">
         <div>
-          <h3 class="text-lg font-semibold text-gray-800 truncate" title="${sessionId}">
-            ${shortId}...
+          <h3 class="text-lg font-semibold text-gray-800">
+            ${call.userName || 'Usuario'}
           </h3>
           <p class="text-sm text-gray-500">
-            ${formatRelativeTime(session.createdAt)}
+            ${phoneNumber}
           </p>
         </div>
         <div class="flex space-x-1">
-          <span class="status-indicator ${hasActiveCall ? 'status-active' : 'status-inactive'}" 
-                title="${hasActiveCall ? 'Llamada activa' : 'Sin llamada'}"></span>
-          <span class="status-indicator ${hasAgentActive ? 'status-agent' : 'status-inactive'}" 
-                title="${hasAgentActive ? 'Agente conectado' : 'Sin agente'}"></span>
+          <span class="status-indicator ${isActive ? 'status-active' : 'status-ended'}" 
+                title="${isActive ? 'Llamada activa' : 'Llamada finalizada'}"></span>
+          <span class="status-indicator ${hasAgentActive ? 'status-agent' : 'status-ended'}" 
+                title="${hasAgentActive ? 'Con intervención de agente' : 'Sin agente'}"></span>
         </div>
       </div>
+      <div class="mt-2 space-y-1">
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">Duración:</span>
+          <span class="font-medium">${duration}</span>
+        </p>
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">Inicio:</span>
+          <span class="font-medium">${formatRelativeTime(call.startTime)}</span>
+        </p>
+        ${call.endTime ? `
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">Fin:</span>
+          <span class="font-medium">${formatRelativeTime(call.endTime)}</span>
+        </p>
+        ` : ''}
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">Voz:</span>
+          <span class="font-medium">${call.voiceName || 'Desconocida'}</span>
+        </p>
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">Mensajes:</span>
+          <span class="font-medium">${call.transcriptions ? call.transcriptions.length : 0}</span>
+        </p>
+      </div>
       <div class="border-t border-gray-100 pt-2 mt-auto">
-        <div class="flex justify-between">
-          <div class="text-sm">
-            <p class="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>${formatRelativeTime(session.lastActivity)}</span>
-            </p>
-          </div>
+        <div class="flex justify-between items-center">
           <div>
-            ${hasActiveCall ? 
-              `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Llamada: ${session.callSid.substring(0, 6)}...
-               </span>` : 
-              `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                Sin llamada
-               </span>`
-            }
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${isActive ? 'bg-green-100 text-green-800' : 'bg-pink-100 text-pink-800'}">
+              ${isActive ? 'Activa' : 'Finalizada'}
+            </span>
+            ${hasAgentActive ? `
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 ml-1">
+              Agente
+            </span>
+            ` : ''}
           </div>
-        </div>
-        <div class="mt-2 text-xs flex justify-between items-center">
-          <p>Clientes log: ${session.logClients?.size || session.connections?.logClients || 0}</p>
           <div class="flex space-x-2">
             <button 
               class="text-blue-500 hover:text-blue-700 focus:outline-none" 
-              onclick="UIController.viewTranscript('${sessionId}')"
+              onclick="UIController.viewTranscript('${callId}')"
               aria-label="Ver transcripción"
             >
               Ver transcripción
             </button>
-            ${hasActiveCall ? 
-            `<button 
+            ${isActive ? `
+            <button 
               class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs" 
-              onclick="UIController.endCall('${sessionId}', '${session.callSid}')"
+              onclick="UIController.endCall('${callId}', '${call.callSid}')"
               aria-label="Cortar llamada"
             >
               Cortar llamada
-            </button>` : 
-            `<button 
-              class="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs" 
-              onclick="UIController.terminateSession('${sessionId}')"
-              aria-label="Eliminar sesión"
-            >
-              Eliminar sesión
-            </button>`
-            }
+            </button>` : ''}
           </div>
         </div>
       </div>
     `;
 
     // Añadir la tarjeta al contenedor si es nueva
-    if (isNewSession) {
-      elements.sessionsContainer.appendChild(card);
+    if (isNewCall) {
+      elements.callsContainer.appendChild(card);
     }
 
-    // Actualizar el mapa de sesiones
-    displayedSessions.set(sessionId, session);
+    // Actualizar el mapa de llamadas
+    displayedCalls.set(callId, call);
   }
 
-  // Actualizar el contenedor de sesiones
-  function updateSessionsContainer(sessions) {
-    // Limpiar contenedor si no hay sesiones
-    if (!sessions || sessions.length === 0) {
-      elements.sessionsContainer.innerHTML = '';
-      elements.noSessionsMessage.classList.remove('hidden');
+  // Actualizar el contenedor de llamadas
+  function updateCallsContainer(calls) {
+    // Obtener la pestaña activa
+    const activeTab = CallMonitor.getActiveTab();
+
+    // Filtrar llamadas según la pestaña activa
+    const now = Date.now();
+    const thirtyMinsAgo = now - (30 * 60 * 1000);
+
+    let filteredCalls = [];
+    if (activeTab === 'active') {
+      // Mostrar solo llamadas activas
+      filteredCalls = calls.filter(call => call.status === 'active');
+    } else {
+      // Mostrar llamadas recientes finalizadas (últimos 30 minutos)
+      filteredCalls = calls.filter(call => 
+        call.status === 'ended' && 
+        call.endTime > thirtyMinsAgo);
+    }
+
+    // Limpiar contenedor si no hay llamadas
+    if (!filteredCalls || filteredCalls.length === 0) {
+      elements.callsContainer.innerHTML = '';
+      elements.noCallsMessage.classList.remove('hidden');
+      displayedCalls.clear(); // Limpiar el mapa cuando no hay llamadas
+      updateCallSelector(); // Actualizar el selector
       return;
     }
 
-    // Mostrar las sesiones
-    elements.noSessionsMessage.classList.add('hidden');
+    // Mostrar las llamadas
+    elements.noCallsMessage.classList.add('hidden');
 
-    // Marcar todas las sesiones como no verificadas
-    const sessionIds = new Set();
-    sessions.forEach(session => {
-      sessionIds.add(session.id);
-      updateSessionCard(session);
+    // Marcar todas las llamadas como no verificadas
+    const callIds = new Set();
+    filteredCalls.forEach(call => {
+      callIds.add(call.id);
+      updateCallCard(call);
     });
 
-    // Eliminar tarjetas de sesiones que ya no existen
-    for (const [id, session] of displayedSessions.entries()) {
-      if (!sessionIds.has(id)) {
-        const card = document.getElementById(`session-${id}`);
+    // Crear una copia segura del mapa de llamadas para iteración
+    const displayedCallsEntries = Array.from(displayedCalls.entries());
+
+    // Eliminar tarjetas de llamadas que ya no existen o no deben mostrarse
+    for (const [id, call] of displayedCallsEntries) {
+      if (!callIds.has(id)) {
+        // Verificar que la tarjeta existe antes de intentar eliminarla
+        const card = document.getElementById(`call-${id}`);
         if (card) {
+          console.log(`[UIController] Eliminando tarjeta para llamada: ${id}`);
           // Añadir clase para animar la salida
           card.classList.add('opacity-0', 'transform', 'scale-95');
           setTimeout(() => {
-            card.remove();
+            if (document.getElementById(`call-${id}`)) { // Verificar de nuevo antes de eliminar
+              card.remove();
+            }
           }, 300);
+        } else {
+          console.log(`[UIController] La tarjeta para la llamada ${id} ya no existe en el DOM`);
         }
-        displayedSessions.delete(id);
 
-        // También remover del selector de sesiones
-        updateSessionSelector();
+        // Eliminar del mapa de llamadas
+        displayedCalls.delete(id);
       }
     }
+
+    // Actualizar el selector de llamadas después de hacer cambios
+    updateCallSelector();
   }
 
   // Agregar log al panel de logs
@@ -265,11 +322,11 @@ const UIController = (() => {
           text.includes("El agente humano ha tomado el control") ||
           text.includes("El agente humano ha dejado el control")) {
 
-        // Si hay una sesión seleccionada actualmente, refrescar sus transcripciones
-        if (currentSelectedSession) {
+        // Si hay una llamada seleccionada actualmente, refrescar sus transcripciones
+        if (currentSelectedCall) {
           // Refrescar después de un breve retraso para asegurarse de que el backend ha procesado
           setTimeout(() => {
-            fetchTranscripts(currentSelectedSession);
+            fetchTranscripts(currentSelectedCall);
           }, 500);
         }
       }
@@ -278,79 +335,45 @@ const UIController = (() => {
     }
   }
 
-  // Añadir una transcripción a una sesión (para compatibilidad, ahora usamos el backend)
-  function addTranscript(sessionId, text, speakerType) {
-    if (!sessionId || !text) return;
-
-    // Inicializar array de transcripciones para esta sesión si no existe
-    if (!sessionTranscripts.has(sessionId)) {
-      sessionTranscripts.set(sessionId, []);
-    }
-
-    // Añadir la transcripción
-    const transcript = {
-      text,
-      speakerType, // 'bot', 'agent', 'client' o 'system'
-      timestamp: Date.now()
-    };
-
-    sessionTranscripts.get(sessionId).push(transcript);
-
-    // Si esta es la sesión actualmente seleccionada, actualizar la vista
-    if (currentSelectedSession === sessionId) {
-      updateTranscriptView(sessionId);
-    }
-  }
-
-  // Obtener transcripciones del servidor
-  async function fetchTranscripts(sessionId) {
-    if (!sessionId) return;
+  // Obtener transcripciones de una llamada
+  async function fetchTranscripts(callId) {
+    if (!callId) return;
 
     try {
-      const response = await fetch(`/session-transcripts?sessionId=${encodeURIComponent(sessionId)}`);
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
+      const transcriptions = await CallMonitor.fetchCallTranscriptions(callId);
+
+      // Actualizar las transcripciones en el mapa local
+      callTranscripts.set(callId, transcriptions);
+
+      // Actualizar la vista si esta es la llamada seleccionada
+      if (currentSelectedCall === callId) {
+        updateTranscriptView(callId);
       }
 
-      const data = await response.json();
-
-      if (data.success && data.transcriptions) {
-        // Actualizar las transcripciones en el mapa local
-        sessionTranscripts.set(sessionId, data.transcriptions);
-
-        // Actualizar la vista si esta es la sesión seleccionada
-        if (currentSelectedSession === sessionId) {
-          updateTranscriptView(sessionId);
-        }
-
-        return data.transcriptions;
-      } else {
-        console.error("Error obteniendo transcripciones:", data.error || "Respuesta inválida");
-        return null;
-      }
+      return transcriptions;
     } catch (error) {
       console.error("Error obteniendo transcripciones:", error);
       return null;
     }
   }
 
-  // Actualizar la vista de transcripciones para una sesión
-  function updateTranscriptView(sessionId) {
-    if (!sessionId) {
+  // Actualizar la vista de transcripciones para una llamada
+  function updateTranscriptView(callId) {
+    if (!callId) {
       elements.transcriptContainer.innerHTML = `
         <div class="text-center text-gray-500 py-10">
-          Seleccione una sesión para ver las transcripciones
+          Seleccione una llamada para ver las transcripciones
         </div>
       `;
       return;
     }
 
-    const transcripts = sessionTranscripts.get(sessionId);
+    const transcripts = callTranscripts.get(callId);
 
     if (!transcripts || transcripts.length === 0) {
       elements.transcriptContainer.innerHTML = `
         <div class="text-center text-gray-500 py-10">
-          <p>No hay transcripciones disponibles para esta sesión</p>
+          <p>No hay transcripciones disponibles para esta llamada</p>
           <button id="refreshTranscriptsBtn" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
             Refrescar transcripciones
           </button>
@@ -361,7 +384,7 @@ const UIController = (() => {
       const refreshBtn = document.getElementById('refreshTranscriptsBtn');
       if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
-          fetchTranscripts(sessionId);
+          fetchTranscripts(callId);
         });
       }
 
@@ -435,7 +458,7 @@ const UIController = (() => {
     const refreshBtn = document.getElementById('refreshTranscriptsBtn');
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
-        fetchTranscripts(sessionId);
+        fetchTranscripts(callId);
       });
     }
 
@@ -457,57 +480,59 @@ const UIController = (() => {
       autoRefreshInterval = null;
     }
 
-    // Si está habilitado y hay una sesión seleccionada, iniciar refresco automático
-    if (enabled && currentSelectedSession) {
+    // Si está habilitado y hay una llamada seleccionada, iniciar refresco automático
+    if (enabled && currentSelectedCall) {
       autoRefreshInterval = setInterval(() => {
-        fetchTranscripts(currentSelectedSession);
+        fetchTranscripts(currentSelectedCall);
       }, 3000); // Refrescar cada 3 segundos
     }
   }
 
-  // Actualizar el selector de sesiones
-  function updateSessionSelector() {
+  // Actualizar el selector de llamadas
+  function updateCallSelector() {
     // Guardar la selección actual
-    const currentValue = elements.sessionSelector.value;
+    const currentValue = elements.callSelector.value;
 
     // Limpiar opciones excepto la primera (placeholder)
-    while (elements.sessionSelector.options.length > 1) {
-      elements.sessionSelector.remove(1);
+    while (elements.callSelector.options.length > 1) {
+      elements.callSelector.remove(1);
     }
 
-    // Añadir opciones para cada sesión activa
-    for (const [sessionId, session] of displayedSessions.entries()) {
+    // Añadir opciones para cada llamada activa
+    for (const [callId, call] of displayedCalls.entries()) {
       const option = document.createElement('option');
-      option.value = sessionId;
+      option.value = callId;
 
       // Crear una etiqueta descriptiva
-      let label = `Sesión ${sessionId.substring(0, 8)}...`;
+      let label = `${call.userName || 'Usuario'} - ${call.phoneNumber || 'Desconocido'}`;
 
-      // Añadir información adicional sobre la sesión
-      if (session.callSid) {
-        label += ` (Llamada: ${session.callSid.substring(0, 6)}...)`;
+      // Añadir información adicional sobre la llamada
+      if (call.status === 'active') {
+        label += ' (Activa)';
+      } else {
+        label += ' (Finalizada)';
       }
 
       option.textContent = label;
-      elements.sessionSelector.appendChild(option);
+      elements.callSelector.appendChild(option);
     }
 
     // Restaurar la selección si todavía existe
-    if (currentValue && Array.from(elements.sessionSelector.options).some(opt => opt.value === currentValue)) {
-      elements.sessionSelector.value = currentValue;
+    if (currentValue && Array.from(elements.callSelector.options).some(opt => opt.value === currentValue)) {
+      elements.callSelector.value = currentValue;
     }
   }
 
-  // Ver transcripción de una sesión específica
-  async function viewTranscript(sessionId) {
-    if (!sessionId) return;
+  // Ver transcripción de una llamada específica
+  async function viewTranscript(callId) {
+    if (!callId) return;
 
     // Actualizar el selector
-    if (elements.sessionSelector.value !== sessionId) {
-      elements.sessionSelector.value = sessionId;
+    if (elements.callSelector.value !== callId) {
+      elements.callSelector.value = callId;
     }
 
-    currentSelectedSession = sessionId;
+    currentSelectedCall = callId;
 
     // Mostrar un mensaje de carga
     elements.transcriptContainer.innerHTML = `
@@ -520,8 +545,8 @@ const UIController = (() => {
       </div>
     `;
 
-    // Obtener transcripciones del servidor
-    await fetchTranscripts(sessionId);
+    // Obtener transcripciones de la llamada
+    await fetchTranscripts(callId);
 
     // Activar actualización automática si está habilitada
     if (autoRefreshTranscriptsEnabled) {
@@ -530,9 +555,9 @@ const UIController = (() => {
   }
 
   // Finalizar una llamada
-  async function endCall(sessionId, callSid) {
-    if (!sessionId || !callSid) {
-      console.error("Se requiere sessionId y callSid para finalizar la llamada");
+  async function endCall(callId, callSid) {
+    if (!callId || !callSid) {
+      console.error("Se requiere callId y callSid para finalizar la llamada");
       return;
     }
 
@@ -544,87 +569,22 @@ const UIController = (() => {
         },
         body: JSON.stringify({
           callSid,
-          sessionId
+          sessionId: callId
         })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        showToast(`Llamada ${callSid.substring(0, 6)}... finalizada correctamente`);
+        showToast(`Llamada finalizada correctamente`);
 
-        // Actualizar la sesión inmediatamente para reflejar el cambio
-        if (displayedSessions.has(sessionId)) {
-          const session = displayedSessions.get(sessionId);
-          session.callSid = null;
-          updateSessionCard(session);
-        }
-
-        // Solicitar actualización de todas las sesiones
+        // Solicitar actualización de todas las llamadas
         window.dispatchEvent(new CustomEvent('dashboard:requestRefresh'));
       } else {
         showToast(`Error al finalizar la llamada: ${result.error || 'Error desconocido'}`, 5000);
       }
     } catch (error) {
       console.error("Error finalizando llamada:", error);
-      showToast('Error al comunicarse con el servidor', 5000);
-    }
-  }
-
-  // Terminar una sesión (eliminarla)
-  async function terminateSession(sessionId) {
-    if (!sessionId) {
-      console.error("Se requiere sessionId para terminar la sesión");
-      return;
-    }
-
-    try {
-      const response = await fetch('/terminate-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sessionId
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Eliminar sesión del UI
-        displayedSessions.delete(sessionId);
-        sessionTranscripts.delete(sessionId);
-
-        // Eliminar la tarjeta
-        const card = document.getElementById(`session-${sessionId}`);
-        if (card) {
-          card.remove();
-        }
-
-        // Actualizar el selector
-        updateSessionSelector();
-
-        // Si era la sesión seleccionada, limpiar la vista
-        if (currentSelectedSession === sessionId) {
-          currentSelectedSession = null;
-          toggleAutoRefresh(false); // Desactivar auto-refresh
-          elements.transcriptContainer.innerHTML = `
-            <div class="text-center text-gray-500 py-10">
-              Seleccione una sesión para ver las transcripciones
-            </div>
-          `;
-        }
-
-        showToast(`Sesión ${sessionId.substring(0, 8)}... eliminada`);
-
-        // Refrescar todas las sesiones
-        window.dispatchEvent(new CustomEvent('dashboard:requestRefresh'));
-      } else {
-        showToast(`Error al eliminar la sesión: ${result.error || 'Error desconocido'}`, 5000);
-      }
-    } catch (error) {
-      console.error("Error terminando sesión:", error);
       showToast('Error al comunicarse con el servidor', 5000);
     }
   }
@@ -658,23 +618,56 @@ const UIController = (() => {
       window.dispatchEvent(new CustomEvent('dashboard:requestRefresh'));
     });
 
-    // Event listener para el selector de sesiones
-    elements.sessionSelector.addEventListener('change', () => {
-      const selectedSessionId = elements.sessionSelector.value;
+    // Event listener para el selector de llamadas
+    elements.callSelector.addEventListener('change', () => {
+      const selectedCallId = elements.callSelector.value;
 
-      if (selectedSessionId) {
-        viewTranscript(selectedSessionId);
+      if (selectedCallId) {
+        viewTranscript(selectedCallId);
       } else {
         // Mostrar mensaje predeterminado cuando no hay selección
         toggleAutoRefresh(false); // Desactivar auto-refresh
         elements.transcriptContainer.innerHTML = `
           <div class="text-center text-gray-500 py-10">
-            Seleccione una sesión para ver las transcripciones
+            Seleccione una llamada para ver las transcripciones
           </div>
         `;
-        currentSelectedSession = null;
+        currentSelectedCall = null;
       }
     });
+
+    // Event listeners para las pestañas
+    elements.tabActiveCalls.addEventListener('click', () => {
+      setActiveTab('active');
+    });
+
+    elements.tabRecentCalls.addEventListener('click', () => {
+      setActiveTab('recent');
+    });
+  }
+
+  // Cambiar pestaña activa
+  function setActiveTab(tab) {
+    // Actualizar estado de los botones de pestaña
+    if (tab === 'active') {
+      elements.tabActiveCalls.classList.add('text-blue-600', 'border-blue-600');
+      elements.tabActiveCalls.classList.remove('text-gray-500', 'border-transparent');
+
+      elements.tabRecentCalls.classList.remove('text-blue-600', 'border-blue-600');
+      elements.tabRecentCalls.classList.add('text-gray-500', 'border-transparent');
+    } else {
+      elements.tabRecentCalls.classList.add('text-blue-600', 'border-blue-600');
+      elements.tabRecentCalls.classList.remove('text-gray-500', 'border-transparent');
+
+      elements.tabActiveCalls.classList.remove('text-blue-600', 'border-blue-600');
+      elements.tabActiveCalls.classList.add('text-gray-500', 'border-transparent');
+    }
+
+    // Actualizar en el CallMonitor
+    CallMonitor.setActiveTab(tab);
+
+    // Actualizar la visualización
+    window.dispatchEvent(new CustomEvent('dashboard:requestRefresh'));
   }
 
   // API pública
@@ -682,15 +675,14 @@ const UIController = (() => {
     elements,
     init,
     updateStats,
-    updateSessionsContainer,
+    updateCallsContainer,
     addLog,
-    addTranscript,
     viewTranscript,
     endCall,
-    terminateSession,
     showToast,
     updateConnectionStatus,
-    fetchTranscripts
+    fetchTranscripts,
+    setActiveTab
   };
 })();
 

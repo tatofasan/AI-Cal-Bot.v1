@@ -1,5 +1,26 @@
 // Script principal que inicializa los módulos del dashboard
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('[DashboardMain] Inicializando...');
+
+  // Verificar que los módulos estén disponibles
+  if (!window.UIController) {
+    console.error('[DashboardMain] ERROR: UIController no está disponible');
+  } else {
+    console.log('[DashboardMain] UIController cargado correctamente');
+  }
+
+  if (!window.CallMonitor) {
+    console.error('[DashboardMain] ERROR: CallMonitor no está disponible');
+  } else {
+    console.log('[DashboardMain] CallMonitor cargado correctamente');
+  }
+
+  if (!window.WebSocketClient) {
+    console.error('[DashboardMain] ERROR: WebSocketClient no está disponible');
+  } else {
+    console.log('[DashboardMain] WebSocketClient cargado correctamente');
+  }
+
   // Inicializar controlador de UI
   UIController.init();
 
@@ -7,38 +28,19 @@ document.addEventListener('DOMContentLoaded', function() {
   UIController.addLog('[INFO] Iniciando Dashboard...');
   UIController.addLog('[INFO] Sistema TalkFlow versión 1.0');
 
-  // Función para procesar las actualizaciones de sesiones
-  function processSessionUpdate(data) {
-    if (!data || !data.stats) {
+  // Función para procesar las actualizaciones de llamadas
+  function processCallUpdate(data) {
+    console.log('[DashboardMain] Procesando actualización de llamadas:', data);
+    if (!data || !data.calls) {
       console.error('[Dashboard] Datos inválidos recibidos:', data);
       return;
     }
 
     // Actualizar estadísticas generales
-    UIController.updateStats(data.stats);
+    UIController.updateStats(data);
 
-    // Si hay información detallada de sesiones, mostrarla
-    if (data.stats.sessionDetails && Array.isArray(data.stats.sessionDetails)) {
-      UIController.updateSessionsContainer(data.stats.sessionDetails);
-    } 
-    // Si hay información de sesiones en sessionInfo, usarla
-    else if (data.stats.sessionInfo && Array.isArray(data.stats.sessionInfo)) {
-      UIController.updateSessionsContainer(data.stats.sessionInfo);
-    }
-    // Sino, mostrar solo los IDs como sesiones básicas
-    else if (data.stats.sessions && Array.isArray(data.stats.sessions)) {
-      const basicSessions = data.stats.sessions.map(sessionId => {
-        return {
-          id: sessionId,
-          createdAt: Date.now(), // No tenemos el timestamp real
-          lastActivity: Date.now(),
-          logClients: { size: 0 },
-          callSid: null,
-          isAgentActive: false
-        };
-      });
-      UIController.updateSessionsContainer(basicSessions);
-    }
+    // Actualizar el contenedor de llamadas
+    UIController.updateCallsContainer(data.calls);
   }
 
   // Función para procesar mensajes de WebSocket
@@ -55,9 +57,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = JSON.parse(messageText);
 
         // Si es una actualización de sesión, procesarla
-        if (data.type === 'session_update') {
+        if (data.type === 'session_update' || data.type === 'call_update') {
           // Solicitar actualización de datos
-          SessionMonitor.refreshSessions(processSessionUpdate);
+          CallMonitor.refreshCalls(processCallUpdate);
         } 
         // Si es una transcripción del usuario o del bot, procesarla para las transcripciones
         else if (data.type === 'user_transcript' || data.type === 'agent_response' || 
@@ -84,17 +86,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Procesar mensajes específicos de transcripción
   function processTranscriptionMessage(data) {
-    const sessionId = data.sessionId;
-    if (!sessionId) return;
+    const callId = data.sessionId;
+    if (!callId) return;
 
-    if (data.type === 'user_transcript' && data.text) {
-      UIController.addTranscript(sessionId, data.text, 'client');
-    } 
-    else if (data.type === 'agent_response' && data.text) {
-      UIController.addTranscript(sessionId, data.text, 'bot');
-    }
-    else if (data.type === 'agent_speech' && data.text) {
-      UIController.addTranscript(sessionId, data.text, data.isAgent ? 'agent' : 'bot');
+    // Solicitar refrescar transcripciones si está viendo esta llamada
+    const selectedCallId = document.getElementById('callSelector').value;
+    if (selectedCallId === callId) {
+      UIController.fetchTranscripts(callId);
     }
   }
 
@@ -112,8 +110,8 @@ document.addEventListener('DOMContentLoaded', function() {
           UIController.updateConnectionStatus(true);
           UIController.addLog('[INFO] Conexión establecida con el servidor');
 
-          // Iniciar monitoreo de sesiones
-          SessionMonitor.startMonitoring(processSessionUpdate);
+          // Iniciar monitoreo de llamadas
+          CallMonitor.startMonitoring(processCallUpdate);
         },
 
         // Callback onClose - cuándo se cierra la conexión
@@ -121,8 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
           UIController.updateConnectionStatus(false, 'Desconectado');
           UIController.addLog('[INFO] Conexión cerrada con el servidor');
 
-          // Detener monitoreo de sesiones
-          SessionMonitor.stopMonitoring();
+          // Detener monitoreo de llamadas
+          CallMonitor.stopMonitoring();
         }
       );
     } catch (error) {
@@ -138,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('dashboard:requestRefresh', async function() {
       UIController.addLog('[INFO] Actualización manual solicitada');
       try {
-        await SessionMonitor.refreshSessions(processSessionUpdate);
+        await CallMonitor.refreshCalls(processCallUpdate);
       } catch (error) {
         console.error('[Dashboard] Error en actualización manual:', error);
       }
@@ -147,19 +145,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listener para cuando la ventana pierde el foco
     window.addEventListener('blur', function() {
       // Pausar actualizaciones automáticas para ahorrar recursos
-      SessionMonitor.stopMonitoring();
-      UIController.addLog('[INFO] Monitoreo pausado (ventana en segundo plano)');
+      if (window.CallMonitor) {
+        CallMonitor.stopMonitoring();
+        UIController.addLog('[INFO] Monitoreo pausado (ventana en segundo plano)');
+      }
     });
 
     // Listener para cuando la ventana recupera el foco
     window.addEventListener('focus', function() {
       // Reanudar actualizaciones automáticas
-      SessionMonitor.startMonitoring(processSessionUpdate);
-      UIController.addLog('[INFO] Monitoreo reanudado (ventana en primer plano)');
+      if (window.CallMonitor) {
+        CallMonitor.startMonitoring(processCallUpdate);
+        UIController.addLog('[INFO] Monitoreo reanudado (ventana en primer plano)');
+      }
     });
   }
 
   // Iniciar la aplicación
-  setupEventListeners();
-  setupDashboardConnection();
+  try {
+    setupEventListeners();
+    setupDashboardConnection();
+
+    // Hacer una actualización inicial después de un breve retraso
+    setTimeout(() => {
+      console.log('[DashboardMain] Solicitando actualización inicial...');
+      if (window.CallMonitor) {
+        CallMonitor.refreshCalls(processCallUpdate);
+      }
+    }, 1000);
+  } catch (error) {
+    console.error('[DashboardMain] Error durante la inicialización:', error);
+  }
 });

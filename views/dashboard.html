@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TalkFlow Dashboard</title>
-  <!-- Incluir Tailwind CSS desde CDN -->
+  <!-- Incluir Tailwind CSS desde CDN - Solo para desarrollo -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* Estilos adicionales para el dashboard */
@@ -12,10 +12,10 @@
       background-image: linear-gradient(to bottom, #f9fafb, #f3f4f6);
       border: 1px solid #e5e7eb;
     }
-    .session-card {
+    .call-card {
       transition: all 0.2s ease-in-out;
     }
-    .session-card:hover {
+    .call-card:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -31,19 +31,19 @@
       background-color: #10B981; /* Verde */
       box-shadow: 0 0 5px #10B981;
     }
-    .status-inactive {
+    .status-ended {
       background-color: #EC4899; /* Rosa */
     }
     .status-agent {
       background-color: #F59E0B; /* Amarillo */
       box-shadow: 0 0 5px #F59E0B;
     }
-    /* Animación para nuevas sesiones */
+    /* Animación para nuevas llamadas */
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .new-session {
+    .new-call {
       animation: fadeIn 0.5s ease-out;
     }
     /* Estilos para transcripciones */
@@ -105,12 +105,12 @@
       <h2 class="text-2xl font-semibold text-gray-800 mb-4">Estadísticas generales</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
-          <h3 class="text-lg font-medium text-blue-800">Sesiones activas</h3>
-          <p id="activeSessionsCount" class="text-3xl font-bold text-blue-600">0</p>
+          <h3 class="text-lg font-medium text-blue-800">Llamadas activas</h3>
+          <p id="activeCallsCount" class="text-3xl font-bold text-blue-600">0</p>
         </div>
         <div class="bg-green-50 rounded-lg p-4 border border-green-100">
-          <h3 class="text-lg font-medium text-green-800">Llamadas en curso</h3>
-          <p id="activeCallsCount" class="text-3xl font-bold text-green-600">0</p>
+          <h3 class="text-lg font-medium text-green-800">Llamadas finalizadas (últimos 30m)</h3>
+          <p id="recentCallsCount" class="text-3xl font-bold text-green-600">0</p>
         </div>
         <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-100">
           <h3 class="text-lg font-medium text-yellow-800">Agentes activos</h3>
@@ -119,36 +119,52 @@
       </div>
     </div>
 
-    <!-- Lista de sesiones -->
+    <!-- Lista de llamadas -->
     <div class="bg-white rounded-lg shadow-md p-6">
       <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-semibold text-gray-800">Sesiones activas</h2>
+        <h2 class="text-2xl font-semibold text-gray-800">Llamadas activas</h2>
         <div class="flex space-x-2">
           <span class="flex items-center text-sm text-gray-600">
-            <span class="status-indicator status-active"></span> Llamada activa
+            <span class="status-indicator status-active"></span> En curso
           </span>
           <span class="flex items-center text-sm text-gray-600 ml-4">
-            <span class="status-indicator status-agent"></span> Agente conectado
+            <span class="status-indicator status-agent"></span> Con agente
           </span>
           <span class="flex items-center text-sm text-gray-600 ml-4">
-            <span class="status-indicator status-inactive"></span> Sin llamada
+            <span class="status-indicator status-ended"></span> Finalizada
           </span>
         </div>
       </div>
 
-      <!-- Contenedor de la lista de sesiones -->
-      <div id="sessionsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Las tarjetas de sesión se generarán dinámicamente aquí -->
-        <div class="session-card bg-gray-100 rounded-lg p-4 border border-gray-200 flex flex-col">
+      <!-- Tabs para cambiar entre llamadas activas y recientes -->
+      <div class="mb-4 border-b border-gray-200">
+        <ul class="flex flex-wrap -mb-px">
+          <li class="mr-2">
+            <button id="tab-active-calls" class="inline-block py-2 px-4 text-blue-600 border-b-2 border-blue-600 rounded-t-lg active">
+              Llamadas activas
+            </button>
+          </li>
+          <li class="mr-2">
+            <button id="tab-recent-calls" class="inline-block py-2 px-4 text-gray-500 hover:text-gray-600 border-b-2 border-transparent hover:border-gray-300 rounded-t-lg">
+              Llamadas recientes
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Contenedor de la lista de llamadas -->
+      <div id="callsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Las tarjetas de llamadas se generarán dinámicamente aquí -->
+        <div class="call-card bg-gray-100 rounded-lg p-4 border border-gray-200 flex flex-col">
           <div class="text-center py-8">
-            <p class="text-gray-500">Cargando sesiones...</p>
+            <p class="text-gray-500">Cargando llamadas...</p>
           </div>
         </div>
       </div>
 
-      <!-- Mensaje cuando no hay sesiones -->
-      <div id="noSessionsMessage" class="hidden text-center py-8">
-        <p class="text-gray-500">No hay sesiones activas en este momento.</p>
+      <!-- Mensaje cuando no hay llamadas -->
+      <div id="noCallsMessage" class="hidden text-center py-8">
+        <p class="text-gray-500">No hay llamadas activas en este momento.</p>
       </div>
     </div>
     
@@ -156,14 +172,14 @@
     <div class="bg-white rounded-lg shadow-md p-6 mt-6">
       <h2 class="text-2xl font-semibold text-gray-800 mb-4">Transcripciones en tiempo real</h2>
       <div class="mb-4">
-        <label for="sessionSelector" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar sesión:</label>
-        <select id="sessionSelector" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-          <option value="">Seleccione una sesión...</option>
+        <label for="callSelector" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar llamada:</label>
+        <select id="callSelector" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+          <option value="">Seleccione una llamada...</option>
         </select>
       </div>
       <div id="transcriptContainer" class="chat-container p-4 border border-gray-200 rounded-lg">
         <div class="text-center text-gray-500 py-10">
-          Seleccione una sesión para ver las transcripciones
+          Seleccione una llamada para ver las transcripciones
         </div>
       </div>
     </div>
@@ -179,13 +195,13 @@
 
   <!-- Toast para notificaciones -->
   <div id="toast" class="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow hidden">
-    Nueva sesión detectada
+    Nueva llamada detectada
   </div>
 
-  <!-- Cargar scripts del dashboard -->
+  <!-- Cargar scripts del dashboard en el orden correcto -->
   <script src="/js/dashboard/webSocketClient.js"></script>
   <script src="/js/dashboard/uiController.js"></script>
-  <script src="/js/dashboard/sessionMonitor.js"></script>
+  <script src="/js/dashboard/callMonitor.js"></script>
   <script src="/js/dashboard/dashboardMain.js"></script>
 </body>
 </html>

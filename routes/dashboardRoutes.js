@@ -15,6 +15,10 @@ export default async function dashboardRoutes(fastify, options) {
     return handleJsFileRoute(request, reply, "sessionMonitor.js");
   });
 
+  fastify.get("/js/dashboard/callMonitor.js", (request, reply) => {
+    return handleJsFileRoute(request, reply, "callMonitor.js");
+  });
+
   fastify.get("/js/dashboard/uiController.js", (request, reply) => {
     return handleJsFileRoute(request, reply, "uiController.js");
   });
