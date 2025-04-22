@@ -38,6 +38,8 @@ export function createSession(specificSessionId) {
     isAgentActive: false,
     createdAt: Date.now(),
     lastActivity: Date.now(),
+    // Añadir array para almacenar transcripciones
+    transcriptions: []
   };
 
   // Almacenar la sesión
@@ -87,6 +89,51 @@ export function touchSession(sessionId) {
   const session = sessions.get(sessionId);
   session.lastActivity = Date.now();
   return true;
+}
+
+/**
+ * Añade una transcripción a una sesión
+ * @param {string} sessionId - ID de la sesión
+ * @param {string} text - Texto de la transcripción
+ * @param {string} speakerType - Tipo de hablante ('bot', 'agent', 'client' o 'system')
+ * @returns {boolean} true si la transcripción fue añadida, false si la sesión no existe
+ */
+export function addTranscription(sessionId, text, speakerType) {
+  const session = getSession(sessionId);
+  if (!session) {
+    return false;
+  }
+
+  // Crear objeto de transcripción
+  const transcription = {
+    text,
+    speakerType,
+    timestamp: Date.now()
+  };
+
+  // Añadir al array de transcripciones
+  session.transcriptions.push(transcription);
+
+  // Limitar el tamaño del array para evitar uso excesivo de memoria
+  if (session.transcriptions.length > 100) {
+    session.transcriptions.shift(); // Eliminar la transcripción más antigua
+  }
+
+  return true;
+}
+
+/**
+ * Obtiene las transcripciones de una sesión
+ * @param {string} sessionId - ID de la sesión
+ * @returns {Array|null} - Array de transcripciones o null si la sesión no existe
+ */
+export function getTranscriptions(sessionId) {
+  const session = getSession(sessionId);
+  if (!session) {
+    return null;
+  }
+
+  return session.transcriptions;
 }
 
 /**
@@ -193,6 +240,7 @@ export function getSessionStats() {
       lastActivity: session.lastActivity,
       callSid: session.callSid,
       isAgentActive: session.isAgentActive,
+      transcriptCount: session.transcriptions ? session.transcriptions.length : 0,
       connections: {
         logClients: session.logClients ? session.logClients.size : 0,
         hasTwilioConnection: !!session.twilioWs,

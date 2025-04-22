@@ -10,7 +10,7 @@ import {
   removeAgentConnection
 } from '../utils/sessionManager.js';
 import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
-import { getSession, getSessionStats } from "../services/sessionService.js";
+import { getSession, addTranscription, getSessionStats } from "../services/sessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
   // WebSocket para logs
@@ -51,6 +51,17 @@ export default function websocketsRoutes(fastify, options) {
       if (message.toString() === "heartbeat") {
         ws.send("[HEARTBEAT] Conexión activa");
       }
+
+      // Intentar capturar mensajes con transcripciones
+      try {
+        const messageText = message.toString();
+
+        // Procesar posibles transcripciones en mensajes del WebSocket
+        processTranscriptionsFromMessage(messageText, sessionId);
+
+      } catch (error) {
+        // Ignorar errores al procesar transcripciones
+      }
     });
 
     ws.on("error", (error) => {
@@ -79,6 +90,7 @@ export default function websocketsRoutes(fastify, options) {
     if (!sessionId) {
       // Código de emergencia - usar la última sesión creada si existe
       try {
+        // Usar la función importada en la parte superior del archivo
         const stats = getSessionStats();
         const sessionInfo = stats.sessionInfo || [];
 
@@ -143,6 +155,9 @@ export default function websocketsRoutes(fastify, options) {
         });
       }
 
+      // Guardar el mensaje como transcripción (del agente)
+      addTranscription(sessionId, message, 'agent');
+
       // Procesar el mensaje de texto
       await processAgentTranscript(sessionId, message);
 
@@ -188,6 +203,9 @@ export default function websocketsRoutes(fastify, options) {
           // Mensaje de conexión inicial
           console.log("[AgentVoice] Agente conectado:", data.message, { sessionId });
 
+          // Guardar como mensaje del sistema
+          addTranscription(sessionId, "El agente humano ha tomado el control de la llamada", 'system');
+
           // Al conectar, enviar inmediatamente un comando de interrupción
           // para asegurar que el bot deje de hablar cuando el agente toma control
           await processAgentInterrupt(sessionId);
@@ -195,6 +213,9 @@ export default function websocketsRoutes(fastify, options) {
         else if (data.type === 'agent_disconnect') {
           // Mensaje de desconexión
           console.log("[AgentVoice] Agente desconectado", { sessionId });
+
+          // Guardar como mensaje del sistema
+          addTranscription(sessionId, "El agente humano ha dejado el control de la llamada", 'system');
         }
         else if (data.type === 'agent_audio' && data.payload) {
           // Procesar el audio del agente y enviarlo directo a Twilio
@@ -221,4 +242,53 @@ export default function websocketsRoutes(fastify, options) {
       console.error("[AgentVoice] Error en WebSocket:", error, { sessionId });
     });
   });
+
+  // Función auxiliar para procesar posibles transcripciones en mensajes
+  function processTranscriptionsFromMessage(messageText, sessionId) {
+    // Detectar transcripciones del usuario
+    if (messageText.includes("[Twilio] Transcripción del usuario:")) {
+      const text = messageText.replace(/.*Transcripción del usuario:\s*/, "").trim();
+      if (text) {
+        addTranscription(sessionId, text, 'client');
+        console.log(`[WebSocket] Transcripción de usuario capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
+      }
+    } 
+    // Detectar respuestas del bot
+    else if (messageText.includes("[Twilio] Respuesta del agente:")) {
+      const text = messageText.replace(/.*Respuesta del agente:\s*/, "").trim();
+      if (text) {
+        // Determinar si es bot o agente humano
+        const speakerType = messageText.includes("[AGENT]") ? 'agent' : 'bot';
+        addTranscription(sessionId, text, speakerType);
+        console.log(`[WebSocket] Respuesta del ${speakerType} capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
+      }
+    }
+    // Detectar mensajes del agente
+    else if (messageText.includes("[AgentVoice]")) {
+      if (messageText.includes("Mensaje del agente:")) {
+        const text = messageText.replace(/.*Mensaje del agente:\s*/, "").trim();
+        if (text) {
+          addTranscription(sessionId, text, 'agent');
+          console.log(`[WebSocket] Mensaje del agente capturado y guardado: "${text.substring(0, 30)}..."`, { sessionId });
+        }
+      }
+    }
+
+    // Intentar procesar como objeto JSON
+    try {
+      const jsonData = JSON.parse(messageText);
+
+      if (jsonData.type === 'user_transcript' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, 'client');
+      }
+      else if (jsonData.type === 'agent_response' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, 'bot');
+      }
+      else if (jsonData.type === 'agent_speech' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, jsonData.isAgent ? 'agent' : 'bot');
+      }
+    } catch (e) {
+      // No es JSON, ignorar
+    }
+  }
 }
