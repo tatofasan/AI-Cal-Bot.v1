@@ -11,6 +11,7 @@ Este proyecto es un sistema de call center con IA que permite realizar llamadas 
 - **Twilio**: Para la gestión de llamadas telefónicas.
 - **ElevenLabs**: Para la generación de voz sintética de alta calidad.
 - **Frontend**: Interfaz web para control y monitoreo de llamadas.
+- **Dashboard**: Interfaz para monitoreo de sesiones concurrentes.
 
 ### Flujo de Datos
 1. El frontend inicia una llamada a través de la API.
@@ -29,7 +30,11 @@ Este proyecto es un sistema de call center con IA que permite realizar llamadas 
 ## Componentes Clave y Su Función
 
 ### Gestión de Sesiones
-El sistema utiliza un gestor de sesiones (`sessionManager.js`) para mantener aisladas las conexiones de diferentes clientes, garantizando que los mensajes y audio se envíen solo a las conexiones pertinentes.
+El sistema utiliza un gestor de sesiones centralizado con dos componentes principales:
+- **sessionService.js**: Servicio central para creación y gestión de sesiones.
+- **sessionManager.js**: Funciones para operaciones comunes sobre las sesiones.
+
+Este diseño permite manejar múltiples llamadas concurrentes sin cruces entre sesiones, con cada sesión manteniendo su propio estado y conexiones.
 
 ### Procesamiento de Audio
 Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) para mejorar la calidad de voz, incluyendo:
@@ -54,6 +59,13 @@ Utiliza la API de ElevenLabs para:
 - Realización de llamadas salientes
 - Transmisión de audio bidireccional
 - Manejo de TwiML para control de llamadas
+
+### Dashboard de Monitoreo
+Sistema de monitoreo en tiempo real que permite:
+- Ver todas las sesiones activas
+- Monitorear estadísticas del sistema
+- Identificar sesiones con llamadas o agentes activos
+- Recibir notificaciones de eventos importantes
 
 ## Patrones de Código
 
@@ -198,6 +210,27 @@ function nombreFuncion(nombre) {
 }
 ```
 
+## URLs Importantes
+- `/`: Interfaz principal del agente
+- `/dashboard`: Dashboard de monitoreo de sesiones
+- `/create-session`: Endpoint para crear una nueva sesión
+- `/session-stats`: Endpoint que retorna estadísticas de sesiones
+- `/session-details`: Endpoint para obtener detalles de una sesión específica
+
+## Mejoras Recientes
+
+### Gestión Centralizada de Sesiones
+- Sistema centralizado de creación y gestión de sesiones
+- Limpieza automática de sesiones inactivas
+- Validación de sessionId en todas las conexiones
+- Prevención de cruces entre sesiones concurrentes
+
+### Dashboard de Monitoreo
+- Interfaz web para monitorear sesiones activas en tiempo real
+- Estadísticas sobre llamadas en curso y agentes conectados
+- Actualización automática de datos cada 5 segundos
+- Notificaciones sobre nuevas sesiones y eventos importantes
+
 ## Patrones de Prueba
 El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se recomienda:
 - Jest para pruebas unitarias de funciones de utilidad
@@ -210,6 +243,7 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 3. Optimización del procesamiento de audio en tiempo real
 4. Mejor gestión de errores en caso de fallo en servicios externos
 5. Implementación de análisis de sentimiento en tiempo real
+6. Sistema de autenticación para el dashboard de monitoreo
 
 ## Recursos Útiles
 - [Documentación de Twilio Media Streams](https://www.twilio.com/docs/voice/twiml/stream)
