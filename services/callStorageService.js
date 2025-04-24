@@ -75,6 +75,12 @@ export function registerCall(callData) {
   if (activeCalls.has(callData.sessionId)) {
     const existingCall = activeCalls.get(callData.sessionId);
     const updatedCall = { ...existingCall, ...callData, updatedAt: Date.now() };
+
+    // Si ahora tenemos un callSid pero antes no, marcar como una llamada real
+    if (callData.callSid && !existingCall.callSid) {
+      updatedCall.isRealCall = true;
+    }
+
     activeCalls.set(callData.sessionId, updatedCall);
     console.log(`[CallStorage] Llamada actualizada: ${callData.sessionId}`, updatedCall);
     return updatedCall;
@@ -90,9 +96,10 @@ export function registerCall(callData) {
     status: 'active',
     userName: callData.userName || callData.user_name || 'Sin nombre',
     voiceName: callData.voiceName || callData.voice_name || 'Desconocida',
-    clientIp: callData.clientIp || 'IP no registrada', // Añadir IP del cliente
+    clientIp: callData.clientIp || 'IP no registrada',
     transcriptions: [],
     agentTakeoverCount: 0,
+    isRealCall: !!callData.callSid, // Marcar como llamada real solo si tiene callSid
     ...callData
   };
 
@@ -122,6 +129,11 @@ export function updateCall(sessionId, updateData) {
     ...updateData, 
     updatedAt: Date.now() 
   };
+
+  // Si ahora tenemos twimlGenerated o callSid, probablemente es una llamada real
+  if ((updateData.twimlGenerated || updateData.callSid) && !existingCall.isRealCall) {
+    updatedCall.isRealCall = true;
+  }
 
   activeCalls.set(sessionId, updatedCall);
   console.log(`[CallStorage] Llamada actualizada: ${sessionId}`, updateData);
@@ -153,13 +165,15 @@ export function endCall(sessionId, endData = {}) {
   // Eliminar de llamadas activas
   activeCalls.delete(sessionId);
 
-  // Añadir a llamadas recientes finalizadas
-  recentlyEndedCalls.set(sessionId, endedCall);
-
-  // Persistir a archivo
-  persistRecentCall(endedCall);
-
-  console.log(`[CallStorage] Llamada finalizada: ${sessionId}`, endedCall);
+  // Añadir a llamadas recientes finalizadas solo si era una llamada real
+  if (call.isRealCall || call.callSid) {
+    recentlyEndedCalls.set(sessionId, endedCall);
+    // Persistir a archivo
+    persistRecentCall(endedCall);
+    console.log(`[CallStorage] Llamada real finalizada: ${sessionId}`, endedCall);
+  } else {
+    console.log(`[CallStorage] Sesión de frontend finalizada (no era una llamada real): ${sessionId}`);
+  }
 
   return endedCall;
 }
@@ -170,6 +184,12 @@ export function endCall(sessionId, endData = {}) {
  */
 function persistRecentCall(callData) {
   try {
+    // Solo guardar en el historial si es una llamada real
+    if (!callData.isRealCall && !callData.callSid) {
+      console.log(`[CallStorage] Omitiendo persistencia de sesión que no es llamada real: ${callData.id}`);
+      return;
+    }
+
     const existingCalls = readCallHistory();
 
     // Filtrar para evitar duplicados
@@ -197,9 +217,12 @@ export function getAllCalls() {
   // Log de debug del estado actual
   console.log(`[CallStorage] Obteniendo todas las llamadas - Activas: ${activeCalls.size}, Recientes: ${recentlyEndedCalls.size}`);
 
-  // Añadir llamadas activas
+  // Añadir llamadas activas (solo las reales)
   for (const call of activeCalls.values()) {
-    allCalls.push(call);
+    // Solo incluir si es una llamada real o tiene callSid
+    if (call.isRealCall || call.callSid) {
+      allCalls.push(call);
+    }
   }
 
   // Añadir llamadas recientes finalizadas en memoria
@@ -222,7 +245,7 @@ export function getAllCalls() {
     }
   }
 
-  console.log(`[CallStorage] Total de llamadas recuperadas: ${allCalls.length} (Activas: ${activeCalls.size}, Recientes en memoria: ${recentlyEndedCalls.size}, Históricas: ${historicCount})`);
+  console.log(`[CallStorage] Total de llamadas recuperadas: ${allCalls.length} (Activas reales: ${allCalls.length - recentlyEndedCalls.size - historicCount}, Recientes en memoria: ${recentlyEndedCalls.size}, Históricas: ${historicCount})`);
 
   return allCalls;
 }
@@ -288,6 +311,11 @@ export function addCallTranscription(callId, text, speakerType) {
       call.agentTakeoverCount = (call.agentTakeoverCount || 0) + 1;
     }
 
+    // Si recibimos una transcripción, probablemente sea una llamada real
+    if (!call.isRealCall) {
+      call.isRealCall = true;
+    }
+
     // Actualizar en el mapa
     activeCalls.set(callId, call);
     console.log(`[CallStorage] Transcripción añadida a llamada activa: ${callId}, tipo: ${speakerType}`);
@@ -343,30 +371,41 @@ function detectAndEndGhostCalls() {
 
   // Verificar las llamadas activas
   for (const [callId, call] of activeCalls.entries()) {
-    // Si la llamada lleva activa más tiempo que el límite máximo permitido, la consideramos una llamada fantasma
-    if (now - call.startTime > MAX_CALL_DURATION_MS) {
-      console.log(`[CallStorage] Detectada posible llamada fantasma: ${callId}, duración: ${Math.floor((now - call.startTime) / 60000)} minutos`);
+    // Solo considerar llamadas marcadas como reales
+    if (call.isRealCall || call.callSid) {
+      // Si la llamada lleva activa más tiempo que el límite máximo permitido, la consideramos una llamada fantasma
+      if (now - call.startTime > MAX_CALL_DURATION_MS) {
+        console.log(`[CallStorage] Detectada posible llamada fantasma: ${callId}, duración: ${Math.floor((now - call.startTime) / 60000)} minutos`);
 
-      // Finalizar la llamada fantasma
-      const endedCall = {
-        ...call,
-        endTime: now,
-        duration: now - call.startTime,
-        status: 'ended',
-        endReason: 'ghost_call_detection',
-        updatedAt: now
-      };
+        // Finalizar la llamada fantasma
+        const endedCall = {
+          ...call,
+          endTime: now,
+          duration: now - call.startTime,
+          status: 'ended',
+          endReason: 'ghost_call_detection',
+          updatedAt: now
+        };
 
-      // Eliminar de llamadas activas
-      activeCalls.delete(callId);
+        // Eliminar de llamadas activas
+        activeCalls.delete(callId);
 
-      // Añadir a llamadas recientes finalizadas
-      recentlyEndedCalls.set(callId, endedCall);
+        // Añadir a llamadas recientes finalizadas
+        recentlyEndedCalls.set(callId, endedCall);
 
-      // Persistir a archivo
-      persistRecentCall(endedCall);
+        // Persistir a archivo
+        persistRecentCall(endedCall);
 
-      ghostCallsDetected.push(endedCall);
+        ghostCallsDetected.push(endedCall);
+      }
+    } else {
+      // Las sesiones de frontend que llevan mucho tiempo activas sin ser llamadas también se finalizan
+      if (now - call.startTime > MAX_CALL_AGE_MS) {
+        console.log(`[CallStorage] Limpiando sesión de frontend inactiva: ${callId}, duración: ${Math.floor((now - call.startTime) / 60000)} minutos`);
+
+        // Simplemente eliminar de las llamadas activas
+        activeCalls.delete(callId);
+      }
     }
   }
 

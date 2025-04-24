@@ -47,8 +47,13 @@ export function createSession(specificSessionId) {
   sessions.set(sessionId, session);
 
   // Registrar la nueva sesión en el servicio de almacenamiento de llamadas
+  // Inicialmente marcamos como isSessionOnly:true para que se distinga de una llamada real
   if (!sessionId.startsWith('session_dashboard_')) {
-    registerCall({ sessionId });
+    registerCall({ 
+      sessionId, 
+      isSessionOnly: true,
+      isRealCall: false
+    });
   }
 
   console.log(`[SessionService] Nueva sesión creada: ${sessionId}`);
@@ -129,6 +134,9 @@ export function addTranscription(sessionId, text, speakerType) {
   // Excluir sesiones del dashboard
   if (!sessionId.startsWith('session_dashboard_')) {
     addCallTranscription(sessionId, text, speakerType);
+
+    // Cuando hay transcripciones, actualizar la llamada para marcarla como real
+    updateCall(sessionId, { isRealCall: true, isSessionOnly: false });
   }
 
   return true;
@@ -266,6 +274,8 @@ export function getSessionStats() {
         callSid: session.callSid,
         isAgentActive: session.isAgentActive,
         transcriptCount: session.transcriptions ? session.transcriptions.length : 0,
+        // Determinar si es una llamada real o solo una sesión de frontend
+        isRealCall: !!session.callSid,
         connections: {
           logClients: session.logClients ? session.logClients.size : 0,
           hasTwilioConnection: !!session.twilioWs,

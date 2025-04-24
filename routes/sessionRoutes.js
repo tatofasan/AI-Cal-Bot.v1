@@ -1,12 +1,23 @@
 // src/routes/sessionRoutes.js
 import { createSession, getSessionStats, getSession, removeSession, getTranscriptions, addTranscription } from '../services/sessionService.js';
 import { twilioClient } from "../services/twilioService.js";
+import { updateCall } from '../services/callStorageService.js';
 
 export default async function sessionRoutes(fastify, options) {
   // Endpoint para solicitar un nuevo sessionId
   fastify.get('/create-session', async (request, reply) => {
     try {
+      // Obtener la IP del cliente para el registro
+      const clientIp = request.headers['x-forwarded-for'] || request.ip || 'desconocida';
+
       const sessionId = createSession();
+
+      // Registrar que esto es solo una sesión de frontend, no una llamada real
+      updateCall(sessionId, { 
+        clientIp,
+        isRealCall: false,
+        isSessionOnly: true
+      });
 
       return reply.send({
         success: true,
@@ -145,6 +156,9 @@ export default async function sessionRoutes(fastify, options) {
           error: 'Session not found'
         });
       }
+
+      // Actualizar el estado de la llamada para indicar que es una llamada real
+      updateCall(sessionId, { isRealCall: true });
 
       return reply.send({
         success: true,

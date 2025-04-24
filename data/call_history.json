@@ -181,5 +181,58 @@
     "endReason": "manual_termination",
     "endTime": 1745516256964,
     "duration": 57963
+  },
+  {
+    "id": "session_f5e3ae1e-0363-461c-b6e4-8e140e4d5d61",
+    "callSid": "CA1117d4aba7141ccb9a8445ffc2155819",
+    "phoneNumber": null,
+    "startTime": 1745517161037,
+    "updatedAt": 1745517209223,
+    "status": "ended",
+    "userName": "juan manuel",
+    "voiceName": "Andrea Chamorro",
+    "clientIp": "190.210.147.2, 10.81.3.28",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con juan manuel?",
+        "speakerType": "bot",
+        "timestamp": 1745517172018
+      },
+      {
+        "text": "Hola, me comunico con juan manuel?",
+        "speakerType": "bot",
+        "timestamp": 1745517172092
+      },
+      {
+        "text": "Sí, ¿qué tal?",
+        "speakerType": "client",
+        "timestamp": 1745517179660
+      },
+      {
+        "text": "Buenos días, mi nombre es Andrea Chamorro, soy representante comercial de Enerflex, el revolucionario bálsamo natural que trabaja directamente sobre las dolencias articulares. Como su consultor personal, le haré unas preguntas para brindarle la información del mejor tratamiento que se adecua para usted.\n\n¿Cuántos años tiene?",
+        "speakerType": "bot",
+        "timestamp": 1745517180240
+      },
+      {
+        "text": "25 años.",
+        "speakerType": "client",
+        "timestamp": 1745517198934
+      },
+      {
+        "text": "¿Qué dolencias está experimentando?\n",
+        "speakerType": "bot",
+        "timestamp": 1745517199001
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_f5e3ae1e-0363-461c-b6e4-8e140e4d5d61",
+    "voiceId": "qHkrJuifPpn95wK3rm2A",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745517171267,
+    "isSessionOnly": false,
+    "endReason": "manual_termination",
+    "endTime": 1745517209223,
+    "duration": 48186
   }
 ]
