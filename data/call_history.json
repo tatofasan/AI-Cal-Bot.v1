@@ -115,5 +115,71 @@
     "endReason": "manual_termination",
     "endTime": 1745342988758,
     "duration": 29343
+  },
+  {
+    "id": "session_db23311d-081b-4822-876a-e8a39cca50f7",
+    "callSid": "CAfaf2065c8fe47de698278267f0077918",
+    "phoneNumber": null,
+    "startTime": 1745516199001,
+    "updatedAt": 1745516256964,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "190.210.147.2, 10.81.8.34",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745516210262
+      },
+      {
+        "text": "Seguirá acá.",
+        "speakerType": "client",
+        "timestamp": 1745516215459
+      },
+      {
+        "text": "Buenos días, mi nombre es Andrea Chamorro, soy representante comercial de Enerflex, el revolucionario bálsamo natural que trabaja directamente sobre las dolencias articulares. Como su consultor personal, le haré unas preguntas para brindarle la información del mejor tratamiento que se adecua para usted.\n\n¿Cuántos años tiene?",
+        "speakerType": "bot",
+        "timestamp": 1745516216051
+      },
+      {
+        "text": "85.",
+        "speakerType": "client",
+        "timestamp": 1745516235428
+      },
+      {
+        "text": "¿Qué dolencias está experimentando?\n",
+        "speakerType": "bot",
+        "timestamp": 1745516235511
+      },
+      {
+        "text": "La dolencia en la rodilla es un poco todo.",
+        "speakerType": "client",
+        "timestamp": 1745516241993
+      },
+      {
+        "text": "¿Realiza ejercicio? ¿Con qué frecuencia?\n",
+        "speakerType": "bot",
+        "timestamp": 1745516242060
+      },
+      {
+        "text": "No, no, nunca.",
+        "speakerType": "client",
+        "timestamp": 1745516249896
+      },
+      {
+        "text": "Gracias por la Información. Por los datos que me brindó podemos confirmar que usted se vería beneficiado significativamente con el tratamiento de ENERFLEX, completando el tratamiento podría alcanzar resultados definitivos. Déjeme contarle cómo funciona ENERFLEX. Debe aplicar el bálsamo dos veces al día, una vez por la mañana y otra por la noche antes de dormir. Primero debe lavar bien la zona afectada con agua tibia y secar, luego debe colocar abundante bálsamo y masajear hasta su completa absorción, permaneciendo en reposo durante al menos quince minutos. De esta forma ENERFLEX comenzará a penetrar los tejidos de la piel trabajando sobre la rigidez muscular mientras protege y previene de futuras dolencias. Aplicando de forma continua trabaja directamente sobre males musculares y articulares originados por padecimientos crónicos. Es un tratamiento sin efecto rebote, lo que le permite mantener los resultados fácilmente sin necesidad de consumir el producto luego de finalizado su tratamiento. Según los datos que me compartió usted debería realizar el tratamiento durante dos meses y medio, para esto necesitará de cinco pomos de Enerflex ya que cada pomo tiene una duración de dos semanas. El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las CINCO unidades en ochenta y siete mil ochocientos cuatro pesos. De esta forma podría realizar el tratamiento completo abonando solo tres unidades a la mitad de su valor y, además, llevándose dos más totalmente gratis, ya que paga tres productos y recibe cinco. Usted puede abonar con tarjeta de credito en dos o tres cuotas, o en efectivo al recibirlo en su domicilio. ¿Como desea abonar?\n",
+        "speakerType": "bot",
+        "timestamp": 1745516253441
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "sessionId": "session_db23311d-081b-4822-876a-e8a39cca50f7",
+    "voiceId": "random",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745516209487,
+    "endReason": "manual_termination",
+    "endTime": 1745516256964,
+    "duration": 57963
   }
 ]

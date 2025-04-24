@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 // Constantes de configuración
 const CALL_HISTORY_FILE = path.join(__dirname, '../data/call_history.json');
 const MAX_CALL_AGE_MS = 30 * 60 * 1000; // 30 minutos en milisegundos
+const MAX_CALL_DURATION_MS = 120 * 60 * 1000; // 120 minutos en milisegundos (límite máximo para detectar llamadas fantasma)
 
 // Asegurar que el directorio data existe
 try {
@@ -89,6 +90,7 @@ export function registerCall(callData) {
     status: 'active',
     userName: callData.userName || callData.user_name || 'Sin nombre',
     voiceName: callData.voiceName || callData.voice_name || 'Desconocida',
+    clientIp: callData.clientIp || 'IP no registrada', // Añadir IP del cliente
     transcriptions: [],
     agentTakeoverCount: 0,
     ...callData
@@ -333,11 +335,57 @@ export function getCallTranscriptions(callId) {
 }
 
 /**
+ * Detecta y finaliza llamadas fantasma que tienen una duración excesiva
+ */
+function detectAndEndGhostCalls() {
+  const now = Date.now();
+  const ghostCallsDetected = [];
+
+  // Verificar las llamadas activas
+  for (const [callId, call] of activeCalls.entries()) {
+    // Si la llamada lleva activa más tiempo que el límite máximo permitido, la consideramos una llamada fantasma
+    if (now - call.startTime > MAX_CALL_DURATION_MS) {
+      console.log(`[CallStorage] Detectada posible llamada fantasma: ${callId}, duración: ${Math.floor((now - call.startTime) / 60000)} minutos`);
+
+      // Finalizar la llamada fantasma
+      const endedCall = {
+        ...call,
+        endTime: now,
+        duration: now - call.startTime,
+        status: 'ended',
+        endReason: 'ghost_call_detection',
+        updatedAt: now
+      };
+
+      // Eliminar de llamadas activas
+      activeCalls.delete(callId);
+
+      // Añadir a llamadas recientes finalizadas
+      recentlyEndedCalls.set(callId, endedCall);
+
+      // Persistir a archivo
+      persistRecentCall(endedCall);
+
+      ghostCallsDetected.push(endedCall);
+    }
+  }
+
+  if (ghostCallsDetected.length > 0) {
+    console.log(`[CallStorage] Se detectaron y finalizaron ${ghostCallsDetected.length} llamadas fantasma`);
+  }
+
+  return ghostCallsDetected;
+}
+
+/**
  * Limpia llamadas antiguas (más de 30 minutos)
  * Se ejecuta periódicamente
  */
 export function cleanupOldCalls() {
   const cutoffTime = Date.now() - MAX_CALL_AGE_MS;
+
+  // Detectar y finalizar posibles llamadas fantasma
+  detectAndEndGhostCalls();
 
   // Limpiar llamadas recientes finalizadas en memoria
   let removedCount = 0;
@@ -372,5 +420,9 @@ export function cleanupOldCalls() {
 // Iniciar limpieza periódica cada 5 minutos
 const cleanupInterval = setInterval(cleanupOldCalls, 5 * 60 * 1000);
 
-// Garantizar que el intervalo no impida que el proceso termine
+// Detectar llamadas fantasma cada 15 minutos
+const ghostCallDetectionInterval = setInterval(detectAndEndGhostCalls, 15 * 60 * 1000);
+
+// Garantizar que los intervalos no impidan que el proceso termine
 cleanupInterval.unref();
+ghostCallDetectionInterval.unref();

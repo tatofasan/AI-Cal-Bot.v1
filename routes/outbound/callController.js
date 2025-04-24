@@ -27,11 +27,15 @@ export const initiateCall = async (request, reply) => {
   // Registrar el sessionId para asociar los logs con la sesión específica
   const sessionContext = sessionId ? { sessionId } : {};
 
+  // Obtener la IP del cliente
+  const clientIp = request.headers['x-forwarded-for'] || request.ip || 'desconocida';
+
   console.log("[DEBUG] Iniciando llamada con parámetros:", {
     user_name,
     to_number: to_number || "+541161728140",
     voice_id,
     voice_name,
+    clientIp,
     ...sessionContext
   });
 
@@ -60,7 +64,8 @@ export const initiateCall = async (request, reply) => {
         userName: user_name,
         phoneNumber: to_number,
         voiceId: voice_id,
-        voiceName: voice_name
+        voiceName: voice_name,
+        clientIp: clientIp // Guardar la IP del cliente en los datos de la llamada
       });
     }
 
