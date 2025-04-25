@@ -107,6 +107,55 @@ const UIController = (() => {
     }
   }
 
+  // Nueva función: Actualizar estado de la llamada en la UI
+  function updateCallStatus(status, message) {
+    // Actualizar el indicador visual de estado
+    let statusColor = 'bg-green-500';  // Por defecto verde para estados "buenos"
+
+    switch (status) {
+      case 'ringing':
+        statusColor = 'bg-yellow-500';  // Amarillo para llamando
+        break;
+      case 'connected':
+        statusColor = 'bg-green-500';   // Verde para conectado
+        break;
+      case 'busy':
+      case 'no-answer':
+      case 'failed':
+      case 'canceled':
+      case 'ended':
+        statusColor = 'bg-red-500';     // Rojo para estados finalizados o de error
+        break;
+      case 'starting':
+        statusColor = 'bg-blue-500';    // Azul para iniciando
+        break;
+      default:
+        statusColor = 'bg-gray-500';    // Gris para otros estados
+    }
+
+    // Actualizar el indicador de estado
+    elements.statusIndicator.className = `w-3 h-3 rounded-full ${statusColor}`;
+    elements.statusText.textContent = message || status;
+
+    // Si es un estado final, también agregar un mensaje al chat
+    if (['busy', 'no-answer', 'failed', 'canceled', 'ended'].includes(status)) {
+      addChatMessage(message || `Llamada finalizada: ${status}`, true, false);
+    }
+
+    // Si es un estado inicial, también agregar mensaje
+    if (status === 'starting' || status === 'ringing') {
+      addChatMessage(message || `Estado: ${status}`, true, false);
+    }
+
+    // Si la llamada está conectada, agregar mensaje de conexión
+    if (status === 'connected') {
+      addChatMessage(message || 'Llamada conectada', true, false);
+    }
+
+    // Log para depuración
+    console.log(`[UIController] Estado de llamada actualizado: ${status} - ${message}`);
+  }
+
   // Agregar mensaje al chat con los nuevos estilos
   function addChatMessage(text, isBot, isAgent = false) {
     const messageDiv = document.createElement("div");
@@ -196,6 +245,7 @@ const UIController = (() => {
     enableTakeoverButton,
     updateCallButton,
     updateConnectionStatus,
+    updateCallStatus,  // Nueva función expuesta
     addChatMessage,
     clearChat,
     addLog,

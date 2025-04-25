@@ -280,6 +280,45 @@ export function getCall(callId) {
 }
 
 /**
+ * Busca una llamada por su CallSid
+ * @param {string} callSid - Twilio CallSid de la llamada a buscar
+ * @returns {Object|null} Objeto con la llamada y su sessionId, o null si no existe
+ */
+export function findCallByCallSid(callSid) {
+  if (!callSid) {
+    console.log('[CallStorage] Se intentó buscar una llamada sin CallSid');
+    return null;
+  }
+
+  // Buscar en llamadas activas
+  for (const [sessionId, call] of activeCalls.entries()) {
+    if (call.callSid === callSid) {
+      console.log(`[CallStorage] Encontrada llamada activa con CallSid ${callSid}, sessionId: ${sessionId}`);
+      return { sessionId, call };
+    }
+  }
+
+  // Buscar en llamadas recientes finalizadas
+  for (const [sessionId, call] of recentlyEndedCalls.entries()) {
+    if (call.callSid === callSid) {
+      console.log(`[CallStorage] Encontrada llamada reciente finalizada con CallSid ${callSid}, sessionId: ${sessionId}`);
+      return { sessionId, call };
+    }
+  }
+
+  // Buscar en archivo histórico
+  const historicCalls = readCallHistory();
+  const call = historicCalls.find(c => c.callSid === callSid);
+  if (call) {
+    console.log(`[CallStorage] Encontrada llamada histórica con CallSid ${callSid}, sessionId: ${call.id}`);
+    return { sessionId: call.id, call };
+  }
+
+  console.log(`[CallStorage] No se encontró llamada con CallSid: ${callSid}`);
+  return null;
+}
+
+/**
  * Añade una transcripción a una llamada
  * @param {string} callId - ID de la llamada
  * @param {string} text - Texto de la transcripción

@@ -29,11 +29,10 @@ export default function websocketsRoutes(fastify, options) {
     // Registrar nuevo cliente en el gestor de sesiones
     registerLogClient(sessionId, ws);
 
-    // También registrar en logClients para mantener compatibilidad con código existente
-    logClients.add(ws);
+    // Asociar el sessionId directamente con el WebSocket para usarlo en respuestas
+    ws.sessionId = sessionId;
 
-    ws.send("[INFO] Conexión establecida con logs");
-    ws.send(`[INFO] Session ID: ${sessionId}`);
+    ws.send(`[INFO] Conexión establecida para session: ${sessionId}`);
 
     if (fastify.publicUrl) {
       ws.send(`[INFO] URL pública: ${fastify.publicUrl}`);
@@ -42,9 +41,6 @@ export default function websocketsRoutes(fastify, options) {
     ws.on('close', () => {
       // Eliminar del gestor de sesiones
       removeLogClient(ws);
-
-      // También eliminar de logClients para mantener compatibilidad
-      logClients.delete(ws);
     });
 
     ws.on("message", (message) => {

@@ -83,6 +83,45 @@ const WebSocketHandler = (() => {
               window.AudioProcessor.clearAudioQueues();
             }
           }
+
+          // Procesar actualizaciones de estado de llamada
+          if (data.type === "call_status_update") {
+            console.log(`[WebSocketHandler] Actualización de estado de llamada: ${data.status} - ${data.message}`);
+
+            // Actualizar la UI con el nuevo estado
+            if (window.UIController && typeof window.UIController.updateCallStatus === 'function') {
+              window.UIController.updateCallStatus(data.status, data.message);
+            }
+
+            // Para ciertos estados, podríamos querer actualizar otros elementos de la UI
+            if (data.status === 'ended' || data.status === 'failed' || data.status === 'busy' || 
+                data.status === 'no-answer' || data.status === 'canceled') {
+
+              // Actualizar el botón de llamada si la llamada finalizó
+              if (window.UIController && typeof window.UIController.updateCallButton === 'function') {
+                window.UIController.updateCallButton(false);
+                window.UIController.setCurrentCallSid(null);
+              }
+
+              // Limpiar cualquier audio reproduciéndose
+              if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+                window.AudioProcessor.clearAudioQueues();
+              }
+
+              // Si estaba en modo agente, desactivarlo
+              if (window.UIController && window.UIController.isAgentActive && 
+                  window.UIController.isAgentActive() && 
+                  window.AgentVoiceCapture && 
+                  typeof window.AgentVoiceCapture.stopCapturing === 'function') {
+
+                window.AgentVoiceCapture.stopCapturing();
+
+                if (typeof window.UIController.updateTakeoverButton === 'function') {
+                  window.UIController.updateTakeoverButton(false);
+                }
+              }
+            }
+          }
         } catch (e) {
           // No es JSON, verificar si contiene texto de interrupción
           if (typeof event.data === 'string' && 
