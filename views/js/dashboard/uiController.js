@@ -581,10 +581,24 @@ const UIController = (() => {
 
   // Finalizar una llamada
   async function endCall(callId, callSid) {
-    if (!callId || !callSid) {
-      console.error("Se requiere callId y callSid para finalizar la llamada");
+    if (!callId) {
+      console.error("Se requiere callId para finalizar la llamada");
       return;
     }
+
+    // Verificar si tenemos callSid, o intentar obtenerlo del mapa de llamadas
+    if (!callSid && displayedCalls.has(callId)) {
+      const call = displayedCalls.get(callId);
+      callSid = call.callSid;
+    }
+
+    if (!callSid) {
+      console.error(`No se pudo obtener callSid para la llamada ${callId}`);
+      showToast(`Error: No se pudo obtener el identificador de la llamada`, 5000);
+      return;
+    }
+
+    console.log(`[Dashboard] Finalizando llamada: CallID=${callId}, CallSID=${callSid}`);
 
     try {
       const response = await fetch('/end-call', {
