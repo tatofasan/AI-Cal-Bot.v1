@@ -38,6 +38,7 @@ El sistema cuenta con un servicio de almacenamiento de llamadas (`callStorageSer
 - Guarda llamadas finalizadas recientes (últimos 30 minutos) en memoria para acceso rápido
 - Persiste en archivo JSON las llamadas finalizadas para liberar memoria
 - Limpia automáticamente llamadas antiguas (más de 30 minutos) en intervalos regulares
+- Implementa detección de "llamadas fantasma" que llevan demasiado tiempo activas
 
 ### Procesamiento de Audio
 Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) para mejorar la calidad de voz, incluyendo:
@@ -48,21 +49,24 @@ Implementa técnicas avanzadas de procesamiento de audio (`audioProcessor.js`) p
 - Métricas de latencia para monitoreo de calidad
 
 ### Manejo de WebSockets
-Múltiples conexiones WebSocket para:
+Múltiples tipos de conexiones WebSocket para:
 - Logs y monitoreo (`/logs-websocket`)
 - Stream de media para Twilio (`/outbound-media-stream`)
 - Captura de voz del agente (`/agent-voice-stream`)
+- Comunicación bidireccional con el dashboard de administración
 
 ### Integración con ElevenLabs
 Utiliza la API de ElevenLabs para:
 - Generación de voces sintéticas de alta calidad
 - Procesamiento de audio del cliente
 - Generación de respuestas naturales
+- Soporte para interrupciones cuando el agente toma el control
 
 ### Integración con Twilio
 - Realización de llamadas salientes
 - Transmisión de audio bidireccional
 - Manejo de TwiML para control de llamadas
+- Recepción de callbacks de estado para monitoreo en tiempo real
 
 ## Dashboard de Administración
 El sistema incluye un dashboard de administración que permite:
@@ -80,6 +84,15 @@ El sistema incluye un dashboard de administración que permite:
 - Limpieza automática de llamadas antiguas (más de 30 minutos)
 - Notificaciones en tiempo real de cambios en las llamadas
 - Visualización de métricas como duración, estado y participación de agente
+- Auto-refresco configurable de transcripciones
+
+## Interfaz de Agente Humano
+- Permite monitorear llamadas en tiempo real
+- Incluye un sistema de captura de voz del agente en tiempo real
+- Procesamiento de audio del agente con mejoras de calidad
+- Capacidad de interrumpir al bot para tomar el control
+- Soporte para enviar mensajes directos de texto (sin voz)
+- Visualización de transcripciones en tiempo real
 
 ## Sistema de Transcripciones
 - Almacenamiento centralizado de transcripciones en el servidor por sesión y llamada
@@ -87,6 +100,7 @@ El sistema incluye un dashboard de administración que permite:
 - Visualización en tiempo real con marcas de tiempo
 - API dedicada para consultar y actualizar transcripciones
 - Auto-refresco configurable en el panel de administración
+- Procesamiento de logs para extracción de transcripciones
 
 ## Patrones de Código
 
@@ -170,6 +184,19 @@ if (card) {
   }, 300);
 }
 ```
+
+## Sistema de Voces
+El sistema cuenta con múltiples voces disponibles a través de ElevenLabs:
+- Selección de voz por nombre e ID
+- Opción de voz aleatoria para variedad
+- Métricas de calidad y latencia para cada voz
+
+## Detección de Problemas
+El sistema incluye varias funcionalidades para detectar y manejar problemas:
+- Detección de llamadas fantasma (llamadas que llevan activas demasiado tiempo)
+- Manejo de reconexión automática para WebSockets
+- Timeouts para operaciones críticas
+- Notificaciones visuales de estado de conexión
 
 ## Variables de Entorno
 El sistema utiliza las siguientes variables de entorno:
@@ -280,6 +307,7 @@ El sistema incluye métricas de latencia de audio que se actualizan cada 5 fragm
 - Latencia promedio (últimas 10 muestras)
 - Valores mínimos y máximos de latencia
 - Cantidad de fragmentos de audio procesados
+- Estado de la conexión con los servicios externos
 
 ## Convenciones de Código
 
@@ -320,6 +348,11 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 - Supertest para pruebas de API
 - Cypress para pruebas e2e del frontend
 
+## Problemas Conocidos y Soluciones
+1. **Dashboard no finaliza llamadas correctamente**: Se identificó un problema donde las llamadas no se finalizaban correctamente desde el dashboard aunque la UI mostraba que sí. La causa era que a veces el callSid no se pasaba correctamente. Se implementó una solución para buscar el callSid en el almacenamiento si no está disponible en el parámetro.
+2. **Llamadas fantasma**: Llamadas que permanecen "activas" en el sistema mucho después de haber terminado. Se implementó un sistema de detección y limpieza automática.
+3. **Problemas de reconexión de WebSockets**: Pérdidas ocasionales de conexión. Se implementó un sistema de reconexión automática con backoff exponencial.
+
 ## Áreas de Mejora Conocidas
 1. Implementación de pruebas automatizadas
 2. Manejo mejorado de reconexiones de WebSockets
@@ -328,11 +361,15 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 5. Implementación de análisis de sentimiento en tiempo real
 6. Optimización de la persistencia de datos de llamadas para entornos de producción
 7. Implementación de Tailwind como dependencia en lugar de CDN para entornos de producción
+8. Detección de contestadores automáticos usando análisis de patrones y eventos DTMF
+9. Mejoras en la interfaz del agente para mostrar estadísticas de llamadas en tiempo real
 
 ## Recursos Útiles
 - [Documentación de Twilio Media Streams](https://www.twilio.com/docs/voice/twiml/stream)
 - [API de ElevenLabs](https://docs.elevenlabs.io/api-reference)
 - [Fastify WebSockets](https://github.com/fastify/fastify-websocket)
+- [TwiML](https://www.twilio.com/docs/voice/twiml)
+- [Tonos DTMF para detección de contestadores](https://www.twilio.com/docs/voice/twiml/gather)
 
 ## Terminología del Proyecto
 - **SessionId**: Identificador único para cada sesión de llamada
@@ -346,3 +383,5 @@ El sistema actualmente no tiene pruebas automatizadas formalizadas, pero se reco
 - **Transcripción**: Texto generado a partir del audio del cliente o del bot/agente
 - **Persistencia de Llamadas**: Sistema para almacenar y recuperar datos de llamadas históricas
 - **Limpieza Automática**: Proceso que elimina datos antiguos para optimizar el uso de recursos
+- **Llamada Fantasma**: Llamada que aparece como activa en el sistema pero que ya ha terminado
+- **DTMF**: Dual-Tone Multi-Frequency, los tonos generados por las teclas telefónicas

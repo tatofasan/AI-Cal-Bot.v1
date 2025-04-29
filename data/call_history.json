@@ -1,1 +1,231 @@
-[]
+[
+  {
+    "id": "session_0a4fd51e-3b41-4b6b-b021-9d9c46aeb8d6",
+    "callSid": "CA2134cdda4d8d69f50494d367dc410402",
+    "phoneNumber": null,
+    "startTime": 1745864839352,
+    "updatedAt": 1745864901441,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "190.210.147.2, 10.81.0.123",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745864860536
+      },
+      {
+        "text": "Un siete, dos, ocho, uno, cuatro, cero, uno se encuentra disponible en el tribunal único. Por favor, deje un mensaje después del tono. Al finalizar, puedes colgar o marcar la tecla numeral para más opciones.",
+        "speakerType": "client",
+        "timestamp": 1745864878586
+      },
+      {
+        "text": "end_call(reason=\"contestador automático\")\n",
+        "speakerType": "bot",
+        "timestamp": 1745864878659
+      },
+      {
+        "text": "...",
+        "speakerType": "client",
+        "timestamp": 1745864888594
+      },
+      {
+        "text": "Buenos días, mi nombre es Andrea Chamorro, soy representante comercial de Enerflex, el revolucionario bálsamo natural que trabaja directamente sobre las dolencias articulares. Como su consultor personal, le haré unas preguntas para brindarle la información del mejor tratamiento que se adecua para usted. ¿Cuántos años tiene?\n",
+        "speakerType": "bot",
+        "timestamp": 1745864889150
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_0a4fd51e-3b41-4b6b-b021-9d9c46aeb8d6",
+    "isSessionOnly": false,
+    "voiceId": "random",
+    "callStatus": "in-progress",
+    "uiStatus": "connected",
+    "statusMessage": "Llamada conectada",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745864859824,
+    "endReason": "manual_termination",
+    "endTime": 1745864901441,
+    "duration": 62089
+  },
+  {
+    "id": "session_a6a268ed-d6cf-47ca-8e08-ab72ca982b0d",
+    "callSid": "CA29ad4332515d8ba51e010f5905cb3263",
+    "phoneNumber": null,
+    "startTime": 1745865004035,
+    "updatedAt": 1745865050162,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "190.210.147.2, 10.81.12.35",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745865018635
+      },
+      {
+        "text": "Buenos días, mi nombre es Valeria Rodriguez, soy representante comercial de Enerflex, el revolucionario bálsamo natural que trabaja directamente sobre las dolencias articulares. Como su consultor personal, le haré unas preguntas para brindarle la información del mejor tratamiento que se adecua para usted. ",
+        "speakerType": "bot",
+        "timestamp": 1745865028765
+      },
+      {
+        "text": "1, 1, 7, 2, 8, 1, 4, 0, 1, 50 disponibles en este momento. Por favor, deje un mensaje después del tono.",
+        "speakerType": "client",
+        "timestamp": 1745865031294
+      },
+      {
+        "text": "Entiendo. ¿Cuántos años tiene?\n",
+        "speakerType": "bot",
+        "timestamp": 1745865031302
+      },
+      {
+        "text": "Al finalizar, puede colgar o marcar la tecla numeral con las opciones.",
+        "speakerType": "client",
+        "timestamp": 1745865036487
+      },
+      {
+        "text": "Entiendo. ¿Cuántos años tiene?\n",
+        "speakerType": "bot",
+        "timestamp": 1745865036494
+      },
+      {
+        "text": "...",
+        "speakerType": "client",
+        "timestamp": 1745865045435
+      },
+      {
+        "text": "¿Qué dolencias está experimentando?\n",
+        "speakerType": "bot",
+        "timestamp": 1745865045505
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_a6a268ed-d6cf-47ca-8e08-ab72ca982b0d",
+    "isSessionOnly": false,
+    "voiceId": "random",
+    "callStatus": "in-progress",
+    "uiStatus": "connected",
+    "statusMessage": "Llamada conectada",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745865017859,
+    "endReason": "manual_termination",
+    "endTime": 1745865050162,
+    "duration": 46127
+  },
+  {
+    "id": "session_41217258-0efa-43f1-a608-05f84d1d5bf9",
+    "callSid": "CAb318e638cf7285dafdf784300bc3fa95",
+    "phoneNumber": null,
+    "startTime": 1745865871142,
+    "updatedAt": 1745865906574,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "190.210.147.2, 10.81.2.88",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745865741303
+      },
+      {
+        "text": "1, 7, 2, 8. 1, 4, 0. No se vuelve disponible en este momento. Por favor, deje un mensaje después del tono. Al finalizar, puede colgar o marcar la tecla numeral para más opciones.",
+        "speakerType": "client",
+        "timestamp": 1745865759382
+      },
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745865822959
+      },
+      {
+        "text": "1, 4, 0, no se encuentra disponible en este momento.",
+        "speakerType": "client",
+        "timestamp": 1745865830179
+      },
+      {
+        "text": "...",
+        "speakerType": "bot",
+        "timestamp": 1745865830415
+      },
+      {
+        "text": "Dejame un mensaje después del tono. Antimonizar. Puedo escogar o marcar la tecla numeral para más opciones.",
+        "speakerType": "client",
+        "timestamp": 1745865838042
+      },
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745865892425
+      },
+      {
+        "text": "Sí, claro.",
+        "speakerType": "client",
+        "timestamp": 1745865897454
+      },
+      {
+        "text": "Buenos días, mi nombre es Valeria Rodriguez, soy representante comercial de Enerflex, el revolucionario bálsamo natural que trabaja directamente sobre las dolencias articulares. Como su consultor personal, le haré unas preguntas para brindarle la información del mejor tratamiento que se adecua para usted. ¿Cuántos años tiene?\n",
+        "speakerType": "bot",
+        "timestamp": 1745865898019
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_41217258-0efa-43f1-a608-05f84d1d5bf9",
+    "voiceId": "random",
+    "callStatus": "in-progress",
+    "uiStatus": "connected",
+    "statusMessage": "Llamada conectada",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745865891671,
+    "isSessionOnly": false,
+    "endReason": "manual_termination",
+    "endTime": 1745865906574,
+    "duration": 35432
+  },
+  {
+    "id": "session_ed42e20a-049b-4a5e-a7db-307e671fb569",
+    "callSid": "CAa10a4e4a6a9214f112150e5e3199e0c9",
+    "phoneNumber": null,
+    "startTime": 1745866275339,
+    "updatedAt": 1745866357126,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "190.210.147.2, 10.81.0.123",
+    "transcriptions": [
+      {
+        "text": "Hola, me comunico con el titular de la linea?",
+        "speakerType": "bot",
+        "timestamp": 1745866291883
+      },
+      {
+        "text": "1, 1, 7, 2, 8. 1, 4, 0. No se encuentra disponible el instrumento. Por favor, déjame hacer el tono. Al finalizar...",
+        "speakerType": "client",
+        "timestamp": 1745866306094
+      },
+      {
+        "text": "...",
+        "speakerType": "bot",
+        "timestamp": 1745866306432
+      }
+    ],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_ed42e20a-049b-4a5e-a7db-307e671fb569",
+    "isSessionOnly": false,
+    "voiceId": "random",
+    "callStatus": "in-progress",
+    "uiStatus": "connected",
+    "statusMessage": "Llamada conectada",
+    "twimlGenerated": true,
+    "lastTwimlTimestamp": 1745866291049,
+    "endReason": "manual_termination",
+    "endTime": 1745866357126,
+    "duration": 81787
+  }
+]
