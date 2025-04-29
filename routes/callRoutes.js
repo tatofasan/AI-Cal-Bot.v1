@@ -7,10 +7,13 @@ import {
   getCall,
   getCallTranscriptions
 } from '../services/callStorageService.js';
+import { requireSupervisor } from '../middleware/auth-middleware.js'; // Ruta corregida
 
 export default async function callRoutes(fastify, options) {
-  // Endpoint para obtener todas las llamadas activas y recientes
-  fastify.get('/api/calls', async (request, reply) => {
+  // Endpoint para obtener todas las llamadas activas y recientes - ahora requiere ser supervisor
+  fastify.get('/api/calls', {
+    preHandler: requireSupervisor // Agregar middleware que verifica el rol de supervisor
+  }, async (request, reply) => {
     try {
       const calls = getAllCalls();
 
@@ -28,8 +31,10 @@ export default async function callRoutes(fastify, options) {
     }
   });
 
-  // Endpoint para obtener detalles de una llamada específica
-  fastify.get('/api/calls/:callId', async (request, reply) => {
+  // Endpoint para obtener detalles de una llamada específica - también requiere ser supervisor
+  fastify.get('/api/calls/:callId', {
+    preHandler: requireSupervisor // Agregar middleware que verifica el rol de supervisor
+  }, async (request, reply) => {
     try {
       const { callId } = request.params;
 
@@ -62,8 +67,10 @@ export default async function callRoutes(fastify, options) {
     }
   });
 
-  // Endpoint para obtener transcripciones de una llamada
-  fastify.get('/api/calls/:callId/transcriptions', async (request, reply) => {
+  // Endpoint para obtener transcripciones de una llamada - también requiere ser supervisor
+  fastify.get('/api/calls/:callId/transcriptions', {
+    preHandler: requireSupervisor // Agregar middleware que verifica el rol de supervisor
+  }, async (request, reply) => {
     try {
       const { callId } = request.params;
 
