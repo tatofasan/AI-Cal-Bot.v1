@@ -16,18 +16,13 @@ const broadcastLog = (type, args, sessionId = null) => {
   const timestamp = new Date().toISOString();
   const message = `[${type}] ${args.join(' ')}`;
 
-  // Si no hay sessionId, usamos el comportamiento original para compatibilidad
-  if (!sessionId) {
-    logClients.forEach(client => {
-      if (client.readyState === 1) { // WebSocket.OPEN
-        client.send(message);
-      }
-    });
-    return;
-  }
+  // Si no hay sessionId, no enviamos a los logClients genéricos
+  // Este es el cambio principal - Ya no transmitimos a todos los clientes por defecto
 
-  // Enviar al sessionId específico
-  broadcastToSession(sessionId, message);
+  // Solo enviar al sessionId específico si existe
+  if (sessionId) {
+    broadcastToSession(sessionId, message);
+  }
 };
 
 // Override de todas las funciones de console

@@ -3,10 +3,18 @@ import Fastify from "fastify";
 import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
 import fastifyCors from "@fastify/cors";
+import fastifyCookie from "@fastify/cookie"; // Para manejo de sesiones
+import fastifyStatic from "@fastify/static"; // Para servir archivos estáticos
+import { join } from "path"; // Para construir rutas
+import { fileURLToPath } from 'url'; // Para obtener __dirname
+import { dirname } from 'path';
 import routes from "./routes/index.js";
-// Ngrok ya no es necesario, usando URLs de Replit directamente
 
 import { appConfig, getPublicUrl } from "./services/config/appConfig.js";
+
+// Para obtener __dirname en ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const PORT = appConfig.server.port;
 
@@ -25,6 +33,18 @@ export const startServer = async () => {
       err.message,
     );
   }
+
+  // Registrar cookie plugin para manejo de sesiones
+  await fastify.register(fastifyCookie, {
+    secret: process.env.COOKIE_SECRET || "default-secret-key-change-in-production", // Idealmente usar una clave secreta
+    hook: 'onRequest'
+  });
+
+  // Registrar el plugin static para servir archivos estáticos
+  await fastify.register(fastifyStatic, {
+    root: join(__dirname, 'views'),
+    prefix: '/static/', // Opcional: prefijo para las URLs de archivos estáticos
+  });
 
   await fastify.register(fastifyFormBody);
   await fastify.register(fastifyWs, {

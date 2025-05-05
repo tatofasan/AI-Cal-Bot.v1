@@ -132,6 +132,7 @@ const UIController = (() => {
     // Determinar estado de la llamada
     const isActive = call.status === 'active';
     const hasAgentActive = call.isAgentActive || call.agentTakeoverCount > 0;
+    const isGhostCall = call.endReason === 'ghost_call_detection';
 
     // Obtener una versión corta del ID para mostrar
     const shortId = callId.substring(8, 16); // Omitir el prefijo "session_"
@@ -146,12 +147,22 @@ const UIController = (() => {
     // Obtener número de teléfono formateado
     const phoneNumber = call.phoneNumber || call.to_number || 'Desconocido';
 
+    // Obtener IP del cliente
+    const clientIp = call.clientIp || 'IP no registrada';
+
+    // Verificar si la llamada parece sospechosa (duración excesiva o marcada como fantasma)
+    const isSuspiciousCall = isGhostCall || 
+                             (!call.endTime && 
+                              call.startTime && 
+                              (Date.now() - call.startTime) > 60 * 60 * 1000); // 1 hora
+
     // Construir contenido de la tarjeta
     card.innerHTML = `
       <div class="flex justify-between items-start mb-2">
         <div>
           <h3 class="text-lg font-semibold text-gray-800">
             ${call.userName || 'Usuario'}
+            ${isSuspiciousCall ? '<span class="text-sm text-red-600 font-bold">[POSIBLE FANTASMA]</span>' : ''}
           </h3>
           <p class="text-sm text-gray-500">
             ${phoneNumber}
@@ -167,7 +178,7 @@ const UIController = (() => {
       <div class="mt-2 space-y-1">
         <p class="text-sm flex justify-between">
           <span class="text-gray-600">Duración:</span>
-          <span class="font-medium">${duration}</span>
+          <span class="font-medium ${isSuspiciousCall ? 'text-red-600' : ''}">${duration}</span>
         </p>
         <p class="text-sm flex justify-between">
           <span class="text-gray-600">Inicio:</span>
@@ -187,6 +198,10 @@ const UIController = (() => {
           <span class="text-gray-600">Mensajes:</span>
           <span class="font-medium">${call.transcriptions ? call.transcriptions.length : 0}</span>
         </p>
+        <p class="text-sm flex justify-between">
+          <span class="text-gray-600">IP Cliente:</span>
+          <span class="font-medium">${clientIp}</span>
+        </p>
       </div>
       <div class="border-t border-gray-100 pt-2 mt-auto">
         <div class="flex justify-between items-center">
@@ -197,6 +212,11 @@ const UIController = (() => {
             ${hasAgentActive ? `
             <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 ml-1">
               Agente
+            </span>
+            ` : ''}
+            ${isGhostCall ? `
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 ml-1">
+              Fantasma
             </span>
             ` : ''}
           </div>
@@ -513,6 +533,11 @@ const UIController = (() => {
         label += ' (Finalizada)';
       }
 
+      // Añadir indicador de llamada fantasma
+      if (call.endReason === 'ghost_call_detection') {
+        label += ' [FANTASMA]';
+      }
+
       option.textContent = label;
       elements.callSelector.appendChild(option);
     }
@@ -556,10 +581,24 @@ const UIController = (() => {
 
   // Finalizar una llamada
   async function endCall(callId, callSid) {
-    if (!callId || !callSid) {
-      console.error("Se requiere callId y callSid para finalizar la llamada");
+    if (!callId) {
+      console.error("Se requiere callId para finalizar la llamada");
       return;
     }
+
+    // Verificar si tenemos callSid, o intentar obtenerlo del mapa de llamadas
+    if (!callSid && displayedCalls.has(callId)) {
+      const call = displayedCalls.get(callId);
+      callSid = call.callSid;
+    }
+
+    if (!callSid) {
+      console.error(`No se pudo obtener callSid para la llamada ${callId}`);
+      showToast(`Error: No se pudo obtener el identificador de la llamada`, 5000);
+      return;
+    }
+
+    console.log(`[Dashboard] Finalizando llamada: CallID=${callId}, CallSID=${callSid}`);
 
     try {
       const response = await fetch('/end-call', {

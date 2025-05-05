@@ -59,6 +59,10 @@ export const initiateCall = async ({ user_name, to_number, voice_id, voice_name,
       url: twimlUrl,
       byoc: TWILIO_BYOC_TRUNK_SID,
       machineDetection: true,
+      // Añadir configuración de callbacks para recibir estados de la llamada
+      statusCallback: `${publicUrl}/twilio-status-callback`,
+      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed', 'busy', 'no-answer', 'failed', 'canceled'],
+      statusCallbackMethod: 'POST'
     };
 
     console.log("[Twilio] Opciones de llamada:", callOptions, sessionContext);

@@ -22,6 +22,15 @@ const CallMonitor = (() => {
       }
 
       console.log('[CallMonitor] Datos recibidos:', data);
+
+      // Filtrar solo llamadas reales (con callSid o marcadas explícitamente)
+      if (data.calls && Array.isArray(data.calls)) {
+        data.calls = data.calls.filter(call => 
+          (call.callSid || call.isRealCall) && !call.isSessionOnly
+        );
+        console.log('[CallMonitor] Llamadas reales filtradas:', data.calls.length);
+      }
+
       return data;
     } catch (error) {
       console.error('[CallMonitor] Error al obtener estadísticas de llamadas:', error);

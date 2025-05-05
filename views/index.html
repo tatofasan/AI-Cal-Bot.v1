@@ -39,9 +39,17 @@
       <h1 class="text-3xl font-extrabold">
         <span class="text-white">Talk</span><span class="text-blue-300">Flow</span>
       </h1>
-      <div id="callStatus" class="flex items-center space-x-2">
-        <span class="w-3 h-3 rounded-full bg-red-500" id="statusIndicator"></span>
-        <span id="statusText">Sin conexión</span>
+      <div class="flex items-center space-x-4">
+        <div id="callStatus" class="flex items-center space-x-2">
+          <span class="w-3 h-3 rounded-full bg-red-500" id="statusIndicator"></span>
+          <span id="statusText">Sin conexión</span>
+        </div>
+        <div id="userInfo" class="flex items-center text-sm">
+          <span id="userEmail">Usuario</span>
+          <button id="logoutBtn" class="ml-4 bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs">
+            Cerrar Sesión
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -118,5 +126,46 @@
   <script src="/js/webSocketHandler.js"></script>
   <script src="/js/agentVoiceCapture.js"></script>
   <script src="/js/main.js"></script>
+  
+  <!-- Script para manejar el cierre de sesión -->
+  <script>
+    // Detectar usuario actual desde cookies
+    document.addEventListener('DOMContentLoaded', function() {
+      // Obtener correo electrónico del usuario de la cookie
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+      }
+      
+      // Mostrar email del usuario
+      const userEmail = getCookie('userEmail');
+      if (userEmail) {
+        document.getElementById('userEmail').textContent = userEmail;
+      }
+      
+      // Añadir manejador para el botón de cierre de sesión
+      document.getElementById('logoutBtn').addEventListener('click', function() {
+        // Redirigir al endpoint de logout
+        window.location.href = '/api/auth/logout';
+      });
+      
+      // Si hay un rol, y es supervisor, mostrar enlace al dashboard
+      const userRole = getCookie('userRole');
+      if (userRole === 'supervisor') {
+        const header = document.querySelector('header .flex.items-center.space-x-4');
+        
+        // Crear enlace al dashboard
+        const dashboardLink = document.createElement('a');
+        dashboardLink.href = '/dashboard';
+        dashboardLink.className = 'bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs ml-2';
+        dashboardLink.textContent = 'Dashboard';
+        
+        // Añadir antes del logout
+        header.insertBefore(dashboardLink, document.getElementById('logoutBtn').parentNode);
+      }
+    });
+  </script>
 </body>
 </html>

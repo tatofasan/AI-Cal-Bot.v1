@@ -5,10 +5,13 @@ import {
   generateTwiML, 
   endCall 
 } from "./outbound/callController.js";
+import { requireAuth } from "../middleware/auth-middleware.js"; // Ruta corregida
 
 export default async function outboundCallRoutes(fastify, options) {
-  // Ruta que sirve el front end
-  fastify.get("/", handleIndexRoute);
+  // Ruta que sirve el front end - ahora requiere autenticación
+  fastify.get("/", {
+    preHandler: requireAuth // Agregar middleware de autenticación
+  }, handleIndexRoute);
 
   // Rutas para servir los archivos JS estáticos
   fastify.get("/js/audioProcessor.js", (request, reply) => {
@@ -36,12 +39,16 @@ export default async function outboundCallRoutes(fastify, options) {
     return handleJsFileRoute(request, reply, "agentVoiceCapture.js");
   });
 
-  // Ruta para iniciar la llamada
-  fastify.post("/outbound-call", initiateCall);
+  // Ruta para iniciar la llamada - también requiere autenticación
+  fastify.post("/outbound-call", {
+    preHandler: requireAuth // Agregar middleware de autenticación
+  }, initiateCall);
 
   // Ruta para generar TwiML
   fastify.all("/outbound-call-twiml", generateTwiML);
 
-  // Ruta para cortar la llamada
-  fastify.post("/end-call", endCall);
+  // Ruta para cortar la llamada - también requiere autenticación
+  fastify.post("/end-call", {
+    preHandler: requireAuth // Agregar middleware de autenticación
+  }, endCall);
 }

@@ -12,12 +12,15 @@ const AudioProcessor = (() => {
 
   // Variables para métricas
   let latencyMetrics = {
-    lastAudioReceived: 0,
-    audioChunksReceived: 0,
-    avgLatency: 0,
-    maxLatency: 0,
-    minLatency: Number.MAX_VALUE,
-    recentLatencies: []
+    lastClientAudioReceived: 0, // Timestamp de la última vez que se recibió audio del cliente
+    lastBotResponseReceived: 0, // Timestamp de la última respuesta del bot
+    responseLatency: 0, // Latencia entre cliente y respuesta del bot
+    avgResponseLatency: 0, // Promedio de latencias de respuesta
+    maxResponseLatency: 0, // Máxima latencia de respuesta
+    minResponseLatency: Number.MAX_VALUE, // Mínima latencia de respuesta
+    recentLatencies: [], // Últimas latencias para calcular promedio móvil
+    audioChunksReceived: 0, // Contador de fragmentos de audio recibidos
+    awaitingBotResponse: false // Flag para indicar que estamos esperando respuesta del bot
   };
 
   // Inicializar el sistema de audio
@@ -61,8 +64,33 @@ const AudioProcessor = (() => {
 
   // Reproducción de audio
   function playBotAudioChunk(base64Data, messageId) {
-    // Registrar métricas de latencia
-    updateLatencyMetrics();
+    const now = Date.now();
+
+    // Si estamos esperando respuesta del bot, calcular la latencia
+    if (latencyMetrics.awaitingBotResponse) {
+      latencyMetrics.lastBotResponseReceived = now;
+      latencyMetrics.responseLatency = now - latencyMetrics.lastClientAudioReceived;
+
+      // Actualizar las métricas de latencia
+      latencyMetrics.recentLatencies.push(latencyMetrics.responseLatency);
+      if (latencyMetrics.recentLatencies.length > 5) { // Mantener solo las últimas 5
+        latencyMetrics.recentLatencies.shift();
+      }
+
+      // Calcular promedio
+      const sum = latencyMetrics.recentLatencies.reduce((a, b) => a + b, 0);
+      latencyMetrics.avgResponseLatency = Math.round(sum / latencyMetrics.recentLatencies.length);
+
+      // Actualizar máximo y mínimo
+      latencyMetrics.maxResponseLatency = Math.max(latencyMetrics.maxResponseLatency, latencyMetrics.responseLatency);
+      latencyMetrics.minResponseLatency = Math.min(latencyMetrics.minResponseLatency, latencyMetrics.responseLatency);
+
+      // Actualizar UI con las métricas
+      updateLatencyUI();
+
+      // Ya no estamos esperando respuesta
+      latencyMetrics.awaitingBotResponse = false;
+    }
 
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
@@ -106,6 +134,13 @@ const AudioProcessor = (() => {
   }
 
   function playClientAudioChunk(base64Data, messageId) {
+    // Marcar que hemos recibido audio del cliente y estamos esperando respuesta del bot
+    latencyMetrics.lastClientAudioReceived = Date.now();
+    latencyMetrics.awaitingBotResponse = true;
+
+    // Incrementar contador de fragmentos
+    latencyMetrics.audioChunksReceived++;
+
     // Verificar si ya procesamos este audio (evitar duplicados)
     const audioId = messageId || base64Data.substr(0, 20); // Usar ID o un hash simple
     if (processedAudioIds.has(audioId)) {
@@ -147,38 +182,6 @@ const AudioProcessor = (() => {
     }
   }
 
-  // Actualizar las métricas de latencia del audio
-  function updateLatencyMetrics() {
-    const now = Date.now();
-    latencyMetrics.audioChunksReceived++;
-
-    // Calcular latencia solo si ya hemos recibido un chunk antes
-    if (latencyMetrics.lastAudioReceived > 0) {
-      const latency = now - latencyMetrics.lastAudioReceived;
-
-      // Guardar las últimas 10 latencias para un promedio móvil
-      latencyMetrics.recentLatencies.push(latency);
-      if (latencyMetrics.recentLatencies.length > 10) {
-        latencyMetrics.recentLatencies.shift(); // Mantener solo las últimas 10
-      }
-
-      // Calcular promedio móvil
-      const sum = latencyMetrics.recentLatencies.reduce((a, b) => a + b, 0);
-      latencyMetrics.avgLatency = Math.round(sum / latencyMetrics.recentLatencies.length);
-
-      // Actualizar max y min
-      latencyMetrics.maxLatency = Math.max(latencyMetrics.maxLatency, latency);
-      latencyMetrics.minLatency = Math.min(latencyMetrics.minLatency, latency);
-
-      // Actualizar UI con las métricas cada 5 chunks
-      if (latencyMetrics.audioChunksReceived % 5 === 0) {
-        updateLatencyUI();
-      }
-    }
-
-    latencyMetrics.lastAudioReceived = now;
-  }
-
   // Actualizar la UI con las métricas de latencia
   function updateLatencyUI() {
     // Buscar o crear el elemento de métricas
@@ -199,10 +202,10 @@ const AudioProcessor = (() => {
     let latencyClass = 'text-green-600';
     let latencyStatus = 'Buena';
 
-    if (latencyMetrics.avgLatency > 500) {
+    if (latencyMetrics.avgResponseLatency > 2000) { // Más de 2 segundos se considera alta
       latencyClass = 'text-red-600';
       latencyStatus = 'Alta';
-    } else if (latencyMetrics.avgLatency > 200) {
+    } else if (latencyMetrics.avgResponseLatency > 1000) { // Más de 1 segundo se considera media
       latencyClass = 'text-yellow-600';
       latencyStatus = 'Media';
     }
@@ -210,16 +213,16 @@ const AudioProcessor = (() => {
     // Actualizar el contenido
     metricsElement.innerHTML = `
       <div class="flex justify-between items-center">
-        <span class="font-bold">Métricas de Audio:</span>
-        <span class="${latencyClass} font-bold">Latencia ${latencyStatus}</span>
+        <span class="font-bold">Latencia de Respuesta:</span>
+        <span class="${latencyClass} font-bold">${latencyStatus}</span>
       </div>
       <div class="grid grid-cols-3 gap-2 mt-1">
-        <div>Promedio: <span class="font-mono">${latencyMetrics.avgLatency}ms</span></div>
-        <div>Mín: <span class="font-mono">${latencyMetrics.minLatency === Number.MAX_VALUE ? 'N/A' : latencyMetrics.minLatency + 'ms'}</span></div>
-        <div>Máx: <span class="font-mono">${latencyMetrics.maxLatency}ms</span></div>
+        <div>Promedio: <span class="font-mono">${latencyMetrics.avgResponseLatency}ms</span></div>
+        <div>Mín: <span class="font-mono">${latencyMetrics.minResponseLatency === Number.MAX_VALUE ? 'N/A' : latencyMetrics.minResponseLatency + 'ms'}</span></div>
+        <div>Máx: <span class="font-mono">${latencyMetrics.maxResponseLatency}ms</span></div>
       </div>
       <div class="text-xs text-gray-500 mt-1">
-        Chunks recibidos: ${latencyMetrics.audioChunksReceived}
+        Interacciones: ${latencyMetrics.recentLatencies.length}
       </div>
     `;
   }
