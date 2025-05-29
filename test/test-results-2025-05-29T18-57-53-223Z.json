@@ -1,0 +1,464 @@
+{
+  "total": 15,
+  "passed": 11,
+  "failed": 4,
+  "details": [
+    {
+      "testName": "Flujo Principal - Cliente acepta oferta inicial",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent offered the customer a deal of 3 units + 2 free, totaling 5 units, not a single unit. The user accepted this offer. Therefore, the goal of offering a single unit was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent offered a combo of 3 units + 2 free, totaling 5 units, not 4 as requested in the goal. The agent states: \"El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las CINCO unidades en ochenta y siete mil ochocientos cuatro pesos.\""
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "success",
+          "rationale": "The agent offered the customer the combo of 5 units of Enerflex for 87804 pesos (agent at 0: \"El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las CINCO unidades en ochenta y siete mil ochocientos cuatro pesos.\") and the customer accepted (user at 0: \"Acepto, quiero pagarlo con tarjeta de crédito.\")."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "success",
+          "rationale": "The agent asked \"¿Realiza ejercicio? ¿Con qué frecuencia?\" and the user responded \"Sí, hago ejercicio regularmente.\", thus the goal was met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation shows a sales interaction with a person. The user is responsive and engages in a conversation. There is no indication of an answering machine."
+        },
+        "acepta_combo5": {
+          "criteria_id": "acepta_combo5",
+          "result": "success",
+          "rationale": "The user explicitly states \"Acepto, quiero pagarlo con tarjeta de crédito.\" which confirms their acceptance of the offer of 5 pomos for $87,804."
+        },
+        "llama_supervisor": {
+          "criteria_id": "llama_supervisor",
+          "result": "success",
+          "rationale": "The agent explicitly states \"Lo comunico con mi supervisor para datos de envío, aguarde un momento.\" after the user accepts the offer. A tool call to `call_supervisor` is then made, indicating the agent followed through with the intention to connect the user with a supervisor after acceptance."
+        }
+      }
+    },
+    {
+      "testName": "Contestador Automático - Secuencia numérica",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent encountered an answering machine and ended the call without offering to sell a single unit. The goal was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent encountered an answering machine and ended the call (tool call at 0). Therefore, the goal \"Se ofrece el combo de 4 unidades\" was not achieved."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent encountered an answering machine and ended the call (tool call at 0). Therefore, the goal of offering the Enerflex combo was not achieved."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The conversation ends abruptly after reaching an answering machine. The agent doesn't get to ask about exercise frequency, so the goal is not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "success",
+          "rationale": "The user's message clearly indicates an answering machine. The agent then used the 'end_call' tool with the reason 'Answering machine detected', indicating successful detection."
+        },
+        "detecta_contestador": {
+          "criteria_id": "detecta_contestador",
+          "result": "success",
+          "rationale": "The user message indicates an answering machine. The agent then calls the 'end_call' tool with the reason 'Answering machine detected', and the tool reports a successful call termination."
+        }
+      }
+    },
+    {
+      "testName": "Persona Incorrecta",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent was trying to reach someone named Vero, but the user stated that they had the wrong number. The agent never offered to sell a single unit of anything, so the goal was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The conversation is about a wrong number and the agent never offers the combo of 4 units. The goal was not met."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent was trying to reach someone named Vero, but the user stated that the agent had the wrong number. The agent never offered the combo of 5 unidades de enerflex, so the goal was not met."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The conversation ended after the agent realized they had the wrong number. The agent never asked the user if they exercise or the frequency of their exercise, so the goal was not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation transcript does not provide any information or tool calls that would allow the agent to detect if it was an answering machine. The user explicitly stated that the agent had the wrong number and the conversation ended politely."
+        },
+        "maneja_persona_incorrecta": {
+          "criteria_id": "maneja_persona_incorrecta",
+          "result": "success",
+          "rationale": "The agent appropriately handled the situation when it reached the wrong person. It acknowledged the user's statement that they didn't know Vero, thanked them for their time, and ended the conversation politely. The agent also offered to help find the correct person initially, but respected the user's lack of information and ended the call gracefully (agent at 0: \"Entiendo perfectamente. Gracias por su tiempo.\")."
+        }
+      }
+    },
+    {
+      "testName": "Cliente con dudas - Necesita persuasión",
+      "status": "ERROR",
+      "error": "\"timeout\""
+    },
+    {
+      "testName": "Rechazo Total - Cliente no interesado",
+      "status": "FAILED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "success",
+          "rationale": "The agent explicitly offered the customer to buy a single unit with a 50% discount: \"Si usted prefiere, para probar la eficacia del producto puede llevar una sola unidad con la promoción del cincuenta por ciento de descuento!\""
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent initially offers a deal of 5 units (3 paid + 2 free). The user declines. The agent then offers a single unit at a discount. The goal was to offer a combo of 4 units, which was never explicitly offered."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "success",
+          "rationale": "The agent explicitly offered the customer the combo of 5 units of Enerflex for a discounted price: \"El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las CINCO unidades en ochenta y siete mil ochocientos cuatro pesos.\""
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "success",
+          "rationale": "The agent asked \"¿Realiza ejercicio? ¿Con qué frecuencia?\" and the user responded \"No, gracias.\". This constitutes a valid response to the question about exercise and its frequency, even though the user simply stated they don't exercise."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation involves a sales agent interacting with a user who identifies herself as 'Vero'. The user actively participates in the conversation, answering questions and declining offers. This indicates a live person and not an answering machine. Therefore, the goal of detecting an answering machine was not met."
+        },
+        "sigue_flujo_rechazos": {
+          "criteria_id": "sigue_flujo_rechazos",
+          "result": "failure",
+          "rationale": "The agent only offered two levels of offers: 5 units for 87804 pesos and 1 unit for 29268 pesos. The goal was to verify that the agent passes through 3 levels of offers before escalating to a supervisor. The agent escalated after the second offer, failing to meet the goal."
+        },
+        "deriva_supervisor_final": {
+          "criteria_id": "deriva_supervisor_final",
+          "result": "success",
+          "rationale": "The agent offered the product, was rejected three times by the user, and then initiated a supervisor call as per the goal. The transcript shows the agent saying \"Aguarde que lo derivo con un supervisor para asistirlo.\" after the third rejection."
+        }
+      }
+    },
+    {
+      "testName": "Solicitud No Llamar",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The user explicitly requested to not be called again and to have their number removed from the database. The agent ended the call without offering to sell a single unit."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The user requested to be removed from the call list and the agent ended the call. The goal was to offer a combo of 4 units, which was not achieved."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The user explicitly requested not to be called again and to have their number removed from the database. The agent acknowledged this request and ended the call. The goal was to offer the customer the 5-unit Enerflex combo, which was not achieved due to the user's request to end the interaction."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The conversation ends abruptly after the user requests to be removed from the call list. The agent does not ask about exercise habits or frequency, so the goal is not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The user explicitly identified themselves as a person ('Sí, soy yo') and requested not to be called again. The agent did not perform any action to detect if it was an answering machine. Therefore, the goal of detecting an answering machine was not met."
+        },
+        "respeta_no_llamar": {
+          "criteria_id": "respeta_no_llamar",
+          "result": "success",
+          "rationale": "The user explicitly requested not to be called again and to have their number removed from the database. The agent acknowledged the request and the tool call confirms the call was ended with the reason being 'User requested not to be called again'."
+        }
+      }
+    },
+    {
+      "testName": "Mención de Celebridades",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent ended the call abruptly after the user mentioned a celebrity endorsement, without offering to sell a single unit of the product. The goal was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent ended the call abruptly after the user mentioned a celebrity endorsement, without offering the combo of 4 units. The goal was not met."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent ended the call abruptly after the user mentioned a celebrity endorsement, without offering the 5-unit Enerflex combo. The goal was not met."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The agent ended the call abruptly after the user mentioned a celebrity, without asking about exercise frequency. Therefore, the goal was not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The goal was to detect an answering machine. The conversation shows a real person (Vero) answering and interacting with the agent. The agent ends the call due to an unauthorized celebrity mention, not because it detected an answering machine."
+        },
+        "detecta_celebridad": {
+          "criteria_id": "detecta_celebridad",
+          "result": "success",
+          "rationale": "The user mentioned Lionel Messi, a celebrity. The agent ended the call and the tool call indicates the reason was \"Mencion\\u00f3 celebridad no autorizada\" (Unauthorized celebrity mention), indicating the agent detected the celebrity mention and acted according to the protocol."
+        }
+      }
+    },
+    {
+      "testName": "Cliente pregunta precios repetidamente",
+      "status": "ERROR",
+      "error": "\"timeout\""
+    },
+    {
+      "testName": "Pedido mayorista",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent initially offers a package of five units (three purchased, two free). The user expresses interest in buying ten units, and the agent redirects the call to a supervisor to handle the larger order. The goal was to offer a single unit, which was not achieved."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent initially offers a deal of 5 units (3 purchased + 2 free). The user wants 10 units, and the agent transfers the call to a supervisor. The goal was to offer a combo of 4 units, which was not achieved."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "success",
+          "rationale": "The agent explicitly offered the customer the combo of 5 units of Enerflex for a specific price: \"El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las CINCO unidades en ochenta y siete mil ochocientos cuatro pesos.\""
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "success",
+          "rationale": "The agent asked \"¿Realiza ejercicio? ¿Con qué frecuencia?\" and the user responded \"Como le dije, ya no hago ejercicio. Me duele mucho todo el tiempo.\", which answers the question about exercise and its frequency."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation transcript shows a real person interacting with the agent. The user provides relevant information and engages in a natural conversation, indicating it's not an answering machine. The agent also responds appropriately to the user's inputs, further suggesting a live interaction."
+        },
+        "detecta_pedido_mayor": {
+          "criteria_id": "detecta_pedido_mayor",
+          "result": "success",
+          "rationale": "The user requested 10 units, which is more than 5. The agent then stated \"Para pedidos mayores a cinco unidades tengo que derivarlo con mi supervisor que puede gestionar compras mayoristas.\" and called the supervisor. This indicates the goal was met."
+        }
+      }
+    },
+    {
+      "testName": "Cliente con reclamo",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent repeatedly states that the channel is exclusively for sales and cannot assist with order tracking or complaints (agent at 0, agent at 0, agent at 0). The user's issue is with an existing order, not a new purchase. Therefore, the goal of offering a single unit for sale was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent repeatedly states that the channel is exclusively for sales and cannot assist with order inquiries or complaints, directing the user to igalfer.com/reclamos. The goal was to offer a combo of 4 units, which was not achieved."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent states multiple times that the channel is exclusively for sales and they cannot access order information or escalate complaints (agent at 0). Therefore, the agent cannot offer the customer the combo of 5 units of enerflex, as the goal states."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The conversation focuses on a customer complaint about a missing order, and the agent repeatedly states they can only assist with sales, not order tracking. The agent never asks about exercise or its frequency, so the goal is not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation indicates a real person expressing frustration about a delayed order. The user is actively engaging in a conversation, asking questions, and expressing their needs, which is inconsistent with an automated answering system. Therefore, the goal of detecting an answering machine was not met."
+        },
+        "maneja_reclamo": {
+          "criteria_id": "maneja_reclamo",
+          "result": "success",
+          "rationale": "The agent consistently directs the user to igalfer.com/reclamos to address their issue, as stated in the goal. The conversation ends with the agent reiterating this information, implying the call's purpose has been fulfilled from the agent's perspective."
+        }
+      }
+    },
+    {
+      "testName": "Acepta oferta regional",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent initially offered 5 units, then 4 units. The goal was to offer only one unit, which was never done."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "success",
+          "rationale": "The agent explicitly offered a \"COMBO cuatro\" promotion, which includes four units of ENERFLEX, and the user accepted the offer: \"Está bien, acepto.\""
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent initially offered a combo of 5 units of Enerflex for 87804 pesos. However, the user initially declined. The agent then offered a different promotion of 4 units for 73170 pesos, which the user accepted. Therefore, the original goal of offering the 5-unit combo was not achieved."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "success",
+          "rationale": "The agent asked \"¿Realiza ejercicio? ¿Con qué frecuencia?\" and the user responded \"Hago ejercicio ocasionalmente.\", thus the goal was met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation involves a back-and-forth interaction between the agent and a user who identifies herself as Vero and answers questions. This indicates a live person, not an answering machine. The user engages in a sales pitch, provides information, and ultimately agrees to a purchase. Therefore, the goal of detecting an answering machine was not met."
+        },
+        "acepta_combo4": {
+          "criteria_id": "acepta_combo4",
+          "result": "success",
+          "rationale": "The user explicitly states \"Está bien, acepto\" after the agent offers the regional promotion of 4 units, indicating acceptance of the offer."
+        }
+      }
+    },
+    {
+      "testName": "Acepta solo 1 pomo",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "success",
+          "rationale": "The agent initially tries to sell 5 units, then 4, but finally offers a single unit with a 50% discount. The user agrees to purchase a single unit: \"Está bien, compraré una sola unidad.\""
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "success",
+          "rationale": "The agent offered a combo of 4 units to the user: \"¡Veo en sistema que su región es elegible para la promoción COMBO cuatro! Usted lleva cuatro unidades de ENERFLEX y cada unidad le queda en dieciocho mil doscientos noventa y dos pesos, quedando las cuatro unidades en un precio de setenta y tres mil ciento setenta pesos.\""
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent initially offered a combo of 5 units of Enerflex. However, the user declined due to the cost. The agent then offered a smaller combo of 4 units and finally sold only one unit. Therefore, the initial goal of selling the 5-unit combo was not achieved."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "success",
+          "rationale": "The agent asked \"¿Realiza ejercicio? ¿Con qué frecuencia?\" and the user responded with \"Sí, hago ejercicio tres veces por semana.\", which is a valid response to the question."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation appears to be a sales call, not a scenario designed to detect an answering machine. The user is actively participating and responding to the agent's questions and offers. Therefore, it's impossible to evaluate if the goal was met."
+        },
+        "acepta_unidad": {
+          "criteria_id": "acepta_unidad",
+          "result": "success",
+          "rationale": "The user explicitly agrees to purchase a single unit with a 50% discount: \"Está bien, compraré una sola unidad.\" The agent confirms this understanding and proceeds to transfer the call to a supervisor to finalize the purchase."
+        }
+      }
+    },
+    {
+      "testName": "Preguntas irrelevantes",
+      "status": "ERROR",
+      "error": "\"timeout\""
+    },
+    {
+      "testName": "Preguntas sobre el producto",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The user stated 'Compraré una unidad' at timestamp 0. However, the agent then tries to sell the user five units instead of one. Therefore, the goal was not met."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent offers a combo of 5 units (3 paid + 2 free), not 4 as requested in the goal. The user initially wanted to buy one unit, but the agent tries to upsell to a larger quantity."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "success",
+          "rationale": "The agent explicitly offers the customer the combo of 5 units of Enerflex: \"El día de hoy, con la compra de tres unidades accedes a dos cajas más de regalo, lo que dejaría el total de las cinco unidades en ochenta y siete mil ochocientos cuatro pesos. De esta forma podría realizar el tratamiento completo abonando solo tres unidades a la mitad de su valor y, además, llevándose dos más totalmente gratis, ya que paga tres productos y recibe cinco.\""
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "unknown",
+          "rationale": "The conversation does not include the agent asking about exercise and frequency, nor does the user respond to such a question. Therefore, it's impossible to evaluate if the goal was met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "failure",
+          "rationale": "The conversation is between a sales agent and a user. The agent is trying to sell a product. There is no indication that the agent is trying to detect if the user is an answering machine. Therefore, the goal was not met."
+        },
+        "responde_consultas_producto": {
+          "criteria_id": "responde_consultas_producto",
+          "result": "success",
+          "rationale": "The agent answers the user's questions about the product (Enerflex) regarding its form (balsam, not pills), side effects (none reported), and its effectiveness for arthritis. The agent also provides instructions on how to use the product and offers a deal. This demonstrates that the agent is responding to queries about the product."
+        }
+      }
+    },
+    {
+      "testName": "Respuestas confusas",
+      "status": "PASSED",
+      "criteria": {
+        "combo1": {
+          "criteria_id": "combo1",
+          "result": "failure",
+          "rationale": "The agent was unable to understand the user's nonsensical responses and ended the call. There was no opportunity to offer the customer a single unit for purchase."
+        },
+        "combo4": {
+          "criteria_id": "combo4",
+          "result": "failure",
+          "rationale": "The agent was unable to understand the user and ended the call. Therefore, the goal \"Se ofrece el combo de 4 unidades.\" was not met."
+        },
+        "combo5": {
+          "criteria_id": "combo5",
+          "result": "failure",
+          "rationale": "The agent was unable to understand the user and ended the call. Therefore, the goal of offering the Enerflex 5-unit combo was not met."
+        },
+        "preguntas": {
+          "criteria_id": "preguntas",
+          "result": "failure",
+          "rationale": "The agent was unable to understand the user's responses and ended the call before asking about exercise frequency. Therefore, the goal was not met."
+        },
+        "contestador_automatico": {
+          "criteria_id": "contestador_automatico",
+          "result": "unknown",
+          "rationale": "The agent repeatedly asks the user to repeat themselves due to unintelligible responses. The agent ends the call due to the inability to understand the user. While the user's responses are nonsensical and could indicate an answering machine playing pre-recorded messages, it's impossible to definitively determine if it's an answering machine or a human providing nonsensical answers based solely on the transcript. Therefore, the result is 'unknown'."
+        },
+        "maneja_confusion": {
+          "criteria_id": "maneja_confusion",
+          "result": "success",
+          "rationale": "The user provides nonsensical answers. The agent repeatedly asks for clarification when the user's responses are confusing and incomprehensible, demonstrating that the agent asks for clarification when the answers are confusing. Finally, the agent ends the call because of the inability to understand the user."
+        }
+      }
+    }
+  ]
+}
