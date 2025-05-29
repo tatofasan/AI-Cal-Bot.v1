@@ -5,7 +5,8 @@ import sessionRoutes from "./sessionRoutes.js";
 import dashboardRoutes from "./dashboardRoutes.js";
 import callRoutes from "./callRoutes.js";
 import twilioCallbackRoutes from "./twilioCallbacks.js";
-import authRoutes from "./authRoutes.js"; // Importar las nuevas rutas de autenticación
+import authRoutes from "./authRoutes.js";
+import agentRoutes from "./agentRoutes.js"; // Nueva importación
 
 export default async function routes(fastify, options) {
   fastify.register(outboundCallRoutes.default || outboundCallRoutes);
@@ -14,5 +15,6 @@ export default async function routes(fastify, options) {
   fastify.register(dashboardRoutes);
   fastify.register(callRoutes);
   fastify.register(twilioCallbackRoutes);
-  fastify.register(authRoutes); // Registrar rutas de autenticación
+  fastify.register(authRoutes);
+  fastify.register(agentRoutes); // Registrar nuevas rutas del agente
 }

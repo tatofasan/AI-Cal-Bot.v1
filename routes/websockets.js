@@ -1,15 +1,10 @@
 // src/routes/websockets.js
-import WebSocket from "ws";
 import { setupMediaStream } from "../services/elevenLabsService.js";
-import { logClients } from '../utils/logger.js';
 import { 
   registerLogClient, 
   removeLogClient, 
-  validateSessionId,
-  registerAgentConnection,
-  removeAgentConnection
+  validateSessionId
 } from '../utils/sessionManager.js';
-import { processAgentAudio, processAgentTranscript, processAgentInterrupt } from "../services/speechService.js";
 import { getSession, addTranscription, getSessionStats } from "../services/sessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
@@ -69,174 +64,55 @@ export default function websocketsRoutes(fastify, options) {
     });
   });
 
-  // WebSocket para el media stream outbound
-  fastify.get("/outbound-media-stream", { websocket: true }, (ws, req) => {
-    // Obtener sessionId del querystring - posible problema con Twilio enviando sessionId
+  // WebSocket para el media stream outbound - Simplificado
+  fastify.get("/outbound-media-stream", { websocket: true }, async (ws, req) => {
+    // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
 
-    // Log de diagnóstico para ver qué contiene la solicitud
-    console.log("[WebSocket] Params en solicitud media-stream:", { 
+    // Log de diagnóstico
+    console.log("[WebSocket] Media stream request:", { 
       query: req.query, 
-      url: req.url, 
-      headers: req.headers 
+      url: req.url
     });
 
-    // Si no hay sessionId en querystring, usar el último sessionId activo
-    // Este es un workaround para cuando Twilio no pasa correctamente el sessionId
+    // Si no hay sessionId, intentar obtener el último activo
     if (!sessionId) {
-      // Código de emergencia - usar la última sesión creada si existe
       try {
-        // Usar la función importada en la parte superior del archivo
         const stats = getSessionStats();
         const sessionInfo = stats.sessionInfo || [];
 
         if (sessionInfo.length > 0) {
-          // Ordenar sesiones por creación, la más reciente primero
           const sortedSessions = [...sessionInfo].sort((a, b) => b.createdAt - a.createdAt);
           const latestSessionId = sortedSessions[0].id;
 
-          console.log(`[WebSocket] No se proporcionó sessionId, usando la última sesión activa: ${latestSessionId}`);
-
-          // Asociar sessionId con el WebSocket
+          console.log(`[WebSocket] Usando la última sesión activa: ${latestSessionId}`);
           ws.sessionId = latestSessionId;
 
-          // Configurar el media stream con el sessionId
-          setupMediaStream(ws, latestSessionId);
+          // Configurar el media stream con el SDK
+          await setupMediaStream(ws, latestSessionId);
           return;
         }
       } catch (error) {
         console.error("[WebSocket] Error obteniendo sesiones:", error);
       }
 
-      console.error("[WebSocket] Error: Media stream sin sessionId proporcionado y no hay sesiones activas");
+      console.error("[WebSocket] No se proporcionó sessionId y no hay sesiones activas");
       ws.close(1008, "SessionId no proporcionado");
       return;
     }
 
-    console.info("[Server] Conexión WebSocket para stream de medios iniciada con sessionId:", sessionId);
+    console.info("[WebSocket] Conexión de media stream iniciada con sessionId:", sessionId);
 
     // Asociar sessionId con el WebSocket
     ws.sessionId = sessionId;
 
-    // Configurar el media stream con el sessionId
-    setupMediaStream(ws, sessionId);
-  });
-
-  // Nueva ruta para mensajes de texto directos (para que el agente pueda escribir mensajes)
-  fastify.post("/agent-direct-message", async (request, reply) => {
+    // Configurar el media stream con el SDK
     try {
-      const { sessionId, message } = request.body;
-
-      if (!sessionId || !message) {
-        return reply.code(400).send({ 
-          success: false, 
-          error: "Se requiere sessionId y message" 
-        });
-      }
-
-      // Validar que el sessionId sea válido
-      if (!validateSessionId(sessionId)) {
-        return reply.code(404).send({ 
-          success: false, 
-          error: "SessionId inválido" 
-        });
-      }
-
-      // Obtener la sesión y verificar que existe
-      const session = getSession(sessionId);
-      if (!session) {
-        return reply.code(404).send({ 
-          success: false, 
-          error: "Sesión no encontrada" 
-        });
-      }
-
-      // Guardar el mensaje como transcripción (del agente)
-      addTranscription(sessionId, message, 'agent');
-
-      // Procesar el mensaje de texto
-      await processAgentTranscript(sessionId, message);
-
-      return reply.send({ 
-        success: true, 
-        message: "Mensaje enviado correctamente" 
-      });
+      await setupMediaStream(ws, sessionId);
     } catch (error) {
-      console.error("[AgentAPI] Error procesando mensaje directo:", error);
-      return reply.code(500).send({ 
-        success: false, 
-        error: "Error interno al procesar el mensaje" 
-      });
+      console.error("[WebSocket] Error configurando media stream:", error);
+      ws.close(1011, "Error interno configurando stream");
     }
-  });
-
-  // Nueva ruta WebSocket para la voz del agente
-  fastify.get("/agent-voice-stream", { websocket: true }, (ws, req) => {
-    // Obtener sessionId del querystring
-    const sessionId = req.query.sessionId;
-
-    // Validar que se proporcionó un sessionId y que sea válido
-    if (!sessionId || !validateSessionId(sessionId)) {
-      console.error("[AgentVoice] Error: WebSocket iniciado sin sessionId válido");
-      ws.close(1008, "SessionId inválido o no proporcionado");
-      return;
-    }
-
-    console.log("[AgentVoice] Conexión WebSocket establecida para voz de agente con sessionId:", sessionId);
-
-    // Registrar la conexión del agente en el gestor de sesiones
-    registerAgentConnection(sessionId, ws);
-
-    // Asociar sessionId con el WebSocket
-    ws.sessionId = sessionId;
-
-    // Manejar mensajes de audio del agente
-    ws.on("message", async (message) => {
-      try {
-        const data = JSON.parse(message.toString());
-
-        if (data.type === 'agent_connect') {
-          // Mensaje de conexión inicial
-          console.log("[AgentVoice] Agente conectado:", data.message, { sessionId });
-
-          // Guardar como mensaje del sistema
-          addTranscription(sessionId, "El agente humano ha tomado el control de la llamada", 'system');
-
-          // Al conectar, enviar inmediatamente un comando de interrupción
-          // para asegurar que el bot deje de hablar cuando el agente toma control
-          await processAgentInterrupt(sessionId);
-        }
-        else if (data.type === 'agent_disconnect') {
-          // Mensaje de desconexión
-          console.log("[AgentVoice] Agente desconectado", { sessionId });
-
-          // Guardar como mensaje del sistema
-          addTranscription(sessionId, "El agente humano ha dejado el control de la llamada", 'system');
-        }
-        else if (data.type === 'agent_audio' && data.payload) {
-          // Procesar el audio del agente y enviarlo directo a Twilio
-          await processAgentAudio(sessionId, data);
-        }
-        else if (data.type === 'interrupt_bot') {
-          // Comando para interrumpir al bot
-          console.log("[AgentVoice] Recibido comando para interrumpir bot", { sessionId });
-          await processAgentInterrupt(sessionId);
-        }
-      } catch (error) {
-        console.error("[AgentVoice] Error procesando mensaje:", error, { sessionId });
-      }
-    });
-
-    // Manejar cierre de conexión
-    ws.on("close", () => {
-      console.log("[AgentVoice] Conexión terminada para voz de agente", { sessionId });
-      removeAgentConnection(ws);
-    });
-
-    // Manejar errores
-    ws.on("error", (error) => {
-      console.error("[AgentVoice] Error en WebSocket:", error, { sessionId });
-    });
   });
 
   // Función auxiliar para procesar posibles transcripciones en mensajes
@@ -246,27 +122,16 @@ export default function websocketsRoutes(fastify, options) {
       const text = messageText.replace(/.*Transcripción del usuario:\s*/, "").trim();
       if (text) {
         addTranscription(sessionId, text, 'client');
-        console.log(`[WebSocket] Transcripción de usuario capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
+        console.log(`[WebSocket] Transcripción de usuario capturada: "${text.substring(0, 30)}..."`, { sessionId });
       }
     } 
     // Detectar respuestas del bot
     else if (messageText.includes("[Twilio] Respuesta del agente:")) {
       const text = messageText.replace(/.*Respuesta del agente:\s*/, "").trim();
       if (text) {
-        // Determinar si es bot o agente humano
         const speakerType = messageText.includes("[AGENT]") ? 'agent' : 'bot';
         addTranscription(sessionId, text, speakerType);
-        console.log(`[WebSocket] Respuesta del ${speakerType} capturada y guardada: "${text.substring(0, 30)}..."`, { sessionId });
-      }
-    }
-    // Detectar mensajes del agente
-    else if (messageText.includes("[AgentVoice]")) {
-      if (messageText.includes("Mensaje del agente:")) {
-        const text = messageText.replace(/.*Mensaje del agente:\s*/, "").trim();
-        if (text) {
-          addTranscription(sessionId, text, 'agent');
-          console.log(`[WebSocket] Mensaje del agente capturado y guardado: "${text.substring(0, 30)}..."`, { sessionId });
-        }
+        console.log(`[WebSocket] Respuesta del ${speakerType} capturada: "${text.substring(0, 30)}..."`, { sessionId });
       }
     }
 
@@ -280,8 +145,8 @@ export default function websocketsRoutes(fastify, options) {
       else if (jsonData.type === 'agent_response' && jsonData.text) {
         addTranscription(sessionId, jsonData.text, 'bot');
       }
-      else if (jsonData.type === 'agent_speech' && jsonData.text) {
-        addTranscription(sessionId, jsonData.text, jsonData.isAgent ? 'agent' : 'bot');
+      else if (jsonData.type === 'agent_message' && jsonData.text) {
+        addTranscription(sessionId, jsonData.text, 'agent');
       }
     } catch (e) {
       // No es JSON, ignorar

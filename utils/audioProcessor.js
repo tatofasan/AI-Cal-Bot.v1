@@ -1,68 +1,9 @@
 /**
  * src/utils/audioProcessor.js
  *
- * Sistema avanzado de procesamiento de audio para mejorar la calidad de las transcripciones.
- * Implementación en JavaScript puro sin dependencias externas.
+ * Sistema simplificado de procesamiento de audio usando el SDK de ElevenLabs
+ * Ya no necesitamos conversión µ-law ya que el SDK maneja los formatos automáticamente
  */
-
-/**
- * Decodifica un byte de µ-law a PCM lineal.
- * @param {number} u_val - Valor en µ-law (byte).
- * @returns {number} - Valor en PCM lineal.
- */
-function muLawToLinear(u_val) {
-  u_val = ~u_val & 0xFF;
-  let t = ((u_val & 0x0F) << 3) + 132;
-  t <<= (u_val & 0x70) >> 4;
-  return (u_val & 0x80) ? (132 - t) : (t - 132);
-}
-
-/**
- * Convierte un valor PCM lineal a µ-law.
- * @param {number} sample - Muestra de PCM lineal.
- * @returns {number} - Byte µ-law.
- */
-function linearToMuLaw(sample) {
-  const BIAS = 132;
-  const CLIP = 32635;
-  let sign = 0;
-  if (sample < 0) {
-    sign = 0x80;
-    sample = -sample;
-  }
-  if (sample > CLIP) sample = CLIP;
-  sample += BIAS;
-  let exponent = 7;
-  for (let expMask = 0x4000; (sample & expMask) === 0 && exponent > 0; expMask >>= 1, exponent--) {}
-  let mantissa = (sample >> (exponent + 3)) & 0x0F;
-  let muLawByte = ~(sign | (exponent << 4) | mantissa) & 0xFF;
-  return muLawByte;
-}
-
-/**
- * Amplifica el audio en formato µ-law.
- * @param {string} base64Data - Datos de audio codificados en base64 (formato µ-law).
- * @param {number} gain - Factor de ganancia a aplicar (por defecto 1.0, sin amplificación).
- * @returns {string} - Datos de audio amplificados en base64 (formato µ-law).
- */
-export function amplifyAudio(base64Data, gain = 1.0) {
-  const inputBuffer = Buffer.from(base64Data, 'base64');
-  const outputBuffer = Buffer.alloc(inputBuffer.length);
-
-  for (let i = 0; i < inputBuffer.length; i++) {
-    // Decodificar el byte µ-law a PCM lineal
-    const linearSample = muLawToLinear(inputBuffer[i]);
-    // Aplicar la ganancia
-    let amplifiedSample = linearSample * gain;
-    // Clipping para evitar distorsiones excesivas
-    if (amplifiedSample > 32124) amplifiedSample = 32124;
-    if (amplifiedSample < -32124) amplifiedSample = -32124;
-    // Re-encodar a µ-law
-    outputBuffer[i] = linearToMuLaw(amplifiedSample);
-  }
-  // Retornar el resultado en base64
-  return outputBuffer.toString('base64');
-}
 
 /**
  * Calcula la energía (potencia) de una señal de audio
@@ -82,7 +23,7 @@ function calculateEnergy(samples) {
  * @param {Float32Array} samples - Muestras de audio
  * @returns {boolean} - true si se detecta voz, false en caso contrario
  */
-function detectVoiceActivity(samples) {
+export function detectVoiceActivity(samples) {
   // Parámetros del detector
   const energyThreshold = 0.0015;  // Umbral de energía para considerar voz
   const zcrThreshold = 0.10;      // Umbral de tasa de cruce por cero
@@ -114,137 +55,227 @@ function detectVoiceActivity(samples) {
 }
 
 /**
- * Filtra el ruido mediante un filtro de paso de banda para resaltar frecuencias vocales
+ * Aplica normalización de volumen a las muestras de audio
  * @param {Float32Array} samples - Muestras de audio
- * @returns {Float32Array} - Muestras filtradas
+ * @param {number} targetLevel - Nivel objetivo (0-1)
+ * @returns {Float32Array} - Muestras normalizadas
  */
-function filterNoise(samples) {
-  // Implementación de filtro IIR para enfatizar el rango de voz (300Hz-3kHz)
-  // Coeficientes pre-calculados para un filtro simple optimizado para voz
-  const b = [0.29289323, 0, -0.29289323];  // Coeficientes del numerador
-  const a = [1, -0.41421356, 0];           // Coeficientes del denominador
-
-  const output = new Float32Array(samples.length);
-  let x1 = 0, x2 = 0;
-  let y1 = 0, y2 = 0;
-
-  // Aplicar el filtro
+export function normalizeVolume(samples, targetLevel = 0.8) {
+  // Encontrar el valor máximo absoluto
+  let maxValue = 0;
   for (let i = 0; i < samples.length; i++) {
-    const x0 = samples[i];
-    // Fórmula de diferencias del filtro IIR
-    const y0 = b[0]*x0 + b[1]*x1 + b[2]*x2 - a[1]*y1 - a[2]*y2;
-
-    // Actualizar los valores de estado
-    x2 = x1;
-    x1 = x0;
-    y2 = y1;
-    y1 = y0;
-
-    output[i] = y0;
+    const absValue = Math.abs(samples[i]);
+    if (absValue > maxValue) {
+      maxValue = absValue;
+    }
   }
 
-  return output;
+  // Si el audio está muy bajo, no normalizar para evitar amplificar ruido
+  if (maxValue < 0.01) {
+    return samples;
+  }
+
+  // Calcular factor de normalización
+  const normalizationFactor = targetLevel / maxValue;
+
+  // Aplicar normalización
+  const normalized = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) {
+    normalized[i] = samples[i] * normalizationFactor;
+  }
+
+  return normalized;
 }
 
 /**
- * Aplica un compresor simple para reducir el rango dinámico y hacer más consistente el volumen
+ * Aplica un filtro de suavizado para reducir ruido
  * @param {Float32Array} samples - Muestras de audio
- * @returns {Float32Array} - Muestras comprimidas
+ * @param {number} windowSize - Tamaño de la ventana de suavizado
+ * @returns {Float32Array} - Muestras suavizadas
  */
-function compressAudio(samples) {
-  // Parámetros del compresor
-  const threshold = 0.1;    // Umbral de activación
-  const ratio = 3.0;        // Ratio de compresión (3:1)
-  const makeup = 1.4;       // Ganancia de compensación
-
-  const compressed = new Float32Array(samples.length);
+export function smoothAudio(samples, windowSize = 3) {
+  const smoothed = new Float32Array(samples.length);
 
   for (let i = 0; i < samples.length; i++) {
-    const input = samples[i];
-    const inputAbs = Math.abs(input);
+    let sum = 0;
+    let count = 0;
 
-    // Aplicar compresión solo si supera el umbral
-    if (inputAbs > threshold) {
-      // Calcular ganancia de compresión
-      const gainReduction = (inputAbs - threshold) * (1 - 1/ratio);
-      const gain = (inputAbs - gainReduction) / inputAbs;
+    // Calcular promedio en la ventana
+    for (let j = -windowSize; j <= windowSize; j++) {
+      const index = i + j;
+      if (index >= 0 && index < samples.length) {
+        sum += samples[index];
+        count++;
+      }
+    }
 
-      // Aplicar ganancia y compensación
-      compressed[i] = input * gain * makeup;
+    smoothed[i] = sum / count;
+  }
+
+  return smoothed;
+}
+
+/**
+ * Convierte un ArrayBuffer a Float32Array normalizado [-1, 1]
+ * @param {ArrayBuffer} buffer - Buffer de audio
+ * @param {number} bytesPerSample - Bytes por muestra (1, 2, 3, o 4)
+ * @returns {Float32Array} - Muestras normalizadas
+ */
+export function bufferToFloat32Array(buffer, bytesPerSample = 2) {
+  const dataView = new DataView(buffer);
+  const samples = new Float32Array(buffer.byteLength / bytesPerSample);
+
+  for (let i = 0; i < samples.length; i++) {
+    let sample = 0;
+    const offset = i * bytesPerSample;
+
+    switch (bytesPerSample) {
+      case 1: // 8-bit
+        sample = (dataView.getUint8(offset) - 128) / 128;
+        break;
+      case 2: // 16-bit
+        sample = dataView.getInt16(offset, true) / 32768;
+        break;
+      case 3: // 24-bit
+        const b1 = dataView.getUint8(offset);
+        const b2 = dataView.getUint8(offset + 1);
+        const b3 = dataView.getUint8(offset + 2);
+        sample = ((b3 << 16) | (b2 << 8) | b1) / 8388608;
+        if (b3 & 0x80) sample -= 2; // Manejar signo
+        break;
+      case 4: // 32-bit float
+        sample = dataView.getFloat32(offset, true);
+        break;
+    }
+
+    samples[i] = sample;
+  }
+
+  return samples;
+}
+
+/**
+ * Calcula métricas de calidad de audio
+ * @param {Float32Array} samples - Muestras de audio
+ * @returns {Object} - Métricas de calidad
+ */
+export function calculateAudioMetrics(samples) {
+  const energy = calculateEnergy(samples);
+  const hasVoice = detectVoiceActivity(samples);
+
+  // Calcular SNR aproximado
+  let signal = 0;
+  let noise = 0;
+
+  for (let i = 0; i < samples.length; i++) {
+    if (Math.abs(samples[i]) > 0.1) {
+      signal += samples[i] * samples[i];
     } else {
-      // Por debajo del umbral, aplicar solo makeup gain
-      compressed[i] = input * makeup;
+      noise += samples[i] * samples[i];
     }
-
-    // Limitador suave para evitar clipping
-    if (compressed[i] > 0.95) compressed[i] = 0.95 + (compressed[i] - 0.95) * 0.1;
-    else if (compressed[i] < -0.95) compressed[i] = -0.95 + (compressed[i] + 0.95) * 0.1;
   }
 
-  return compressed;
-}
+  const snr = noise > 0 ? 10 * Math.log10(signal / noise) : 0;
 
-// Variable para controlar la frecuencia de los logs (uno cada N fragmentos)
-let logCounter = 0;
-const LOG_FREQUENCY = 20; // Registrar solo 1 de cada 20 fragmentos
+  return {
+    energy,
+    hasVoice,
+    snr,
+    peakLevel: Math.max(...samples.map(Math.abs)),
+    avgLevel: samples.reduce((a, b) => a + Math.abs(b), 0) / samples.length
+  };
+}
 
 /**
- * Procesa el audio para mejorar la calidad de transcripción
- * Implementa detección de voz, filtrado, compresión y normalización
- * 
- * @param {string} base64Data - Datos de audio codificados en base64 (formato µ-law)
- * @returns {string} - Datos de audio procesados en base64 (formato µ-law)
+ * Clase para gestionar buffers de audio con timestamp
  */
-export function processAudioForSpeechRecognition(base64Data) {
-  try {
-    // Incrementar contador de logs
-    logCounter++;
-    const shouldLog = (logCounter % LOG_FREQUENCY === 0);
+export class AudioBuffer {
+  constructor(maxDuration = 30000) { // 30 segundos por defecto
+    this.chunks = [];
+    this.maxDuration = maxDuration;
+  }
 
-    // Decodificar de base64 a buffer binario
-    const inputBuffer = Buffer.from(base64Data, 'base64');
+  /**
+   * Añade un chunk de audio al buffer
+   * @param {ArrayBuffer|Uint8Array} data - Datos de audio
+   * @param {number} timestamp - Timestamp del chunk
+   */
+  add(data, timestamp = Date.now()) {
+    this.chunks.push({ data, timestamp });
+    this.cleanup();
+  }
 
-    // Convertir µ-law a PCM normalizado a [-1,1]
-    const floatSamples = new Float32Array(inputBuffer.length);
-    for (let i = 0; i < inputBuffer.length; i++) {
-      floatSamples[i] = muLawToLinear(inputBuffer[i]) / 32124.0;
-    }
+  /**
+   * Limpia chunks antiguos
+   */
+  cleanup() {
+    const cutoff = Date.now() - this.maxDuration;
+    this.chunks = this.chunks.filter(chunk => chunk.timestamp > cutoff);
+  }
 
-    // Detectar actividad de voz
-    const hasVoice = detectVoiceActivity(floatSamples);
+  /**
+   * Obtiene todos los chunks en orden
+   * @returns {Array} - Array de chunks
+   */
+  getChunks() {
+    this.cleanup();
+    return this.chunks.sort((a, b) => a.timestamp - b.timestamp);
+  }
 
-    // Si no hay voz detectada, aplicar solo una amplificación ligera
-    if (!hasVoice) {
-      return amplifyAudio(base64Data, 1.5);
-    }
+  /**
+   * Combina todos los chunks en un solo buffer
+   * @returns {Uint8Array} - Buffer combinado
+   */
+  combine() {
+    const chunks = this.getChunks();
+    if (chunks.length === 0) return new Uint8Array(0);
 
-    // Si hay voz, aplicar el pipeline completo de procesamiento
-    if (shouldLog) {
-      console.log("[AudioProcessor] Procesando audio con voz detectada");
-    }
+    // Calcular tamaño total
+    let totalLength = 0;
+    chunks.forEach(chunk => {
+      totalLength += chunk.data.byteLength || chunk.data.length;
+    });
 
-    // 1. Filtrar ruido - Resaltar frecuencias vocales
-    const filteredSamples = filterNoise(floatSamples);
+    // Combinar
+    const combined = new Uint8Array(totalLength);
+    let offset = 0;
 
-    // 2. Comprimir - Reducir rango dinámico y hacer la voz más consistente
-    const compressedSamples = compressAudio(filteredSamples);
+    chunks.forEach(chunk => {
+      const data = chunk.data instanceof ArrayBuffer 
+        ? new Uint8Array(chunk.data) 
+        : chunk.data;
+      combined.set(data, offset);
+      offset += data.length;
+    });
 
-    // 3. Convertir de vuelta a µ-law
-    const outputBuffer = Buffer.alloc(compressedSamples.length);
-    for (let i = 0; i < compressedSamples.length; i++) {
-      // Convertir de [-1,1] a rango PCM y luego a µ-law
-      outputBuffer[i] = linearToMuLaw(compressedSamples[i] * 32124);
-    }
+    return combined;
+  }
 
-    // Retornar el audio procesado en base64
-    return outputBuffer.toString('base64');
+  /**
+   * Limpia el buffer
+   */
+  clear() {
+    this.chunks = [];
+  }
 
-  } catch (error) {
-    // Reducir logs de errores también
-    if (logCounter % LOG_FREQUENCY === 0) {
-      console.error("[AudioProcessor] Error procesando audio:");
-    }
-    // En caso de error, amplificar ligeramente el audio original
-    return amplifyAudio(base64Data, 1.5);
+  /**
+   * Obtiene la duración del buffer en ms
+   * @returns {number} - Duración en milisegundos
+   */
+  getDuration() {
+    if (this.chunks.length < 2) return 0;
+    const first = this.chunks[0];
+    const last = this.chunks[this.chunks.length - 1];
+    return last.timestamp - first.timestamp;
   }
 }
+
+// Exportar utilidades adicionales para compatibilidad
+export default {
+  detectVoiceActivity,
+  normalizeVolume,
+  smoothAudio,
+  bufferToFloat32Array,
+  calculateAudioMetrics,
+  AudioBuffer
+};
