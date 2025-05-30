@@ -3,12 +3,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // Inicialización de la UI
   UIController.updateMonitorIcon(AudioProcessor.isMonitoring());
   UIController.enableTakeoverButton(false);
+  UIController.updateMetricsDisplay();
 
   // Configurar event listeners
   setupEventListeners();
 
   // Conectar al WebSocket
   setupWebSocket();
+
+  // Iniciar actualización periódica de métricas
+  setupMetricsUpdater();
 });
 
 // Configurar los event listeners
@@ -17,17 +21,18 @@ function setupEventListeners() {
   UIController.elements.monitorButton.addEventListener('click', function() {
     const isMonitoring = AudioProcessor.toggleMonitoring();
     UIController.updateMonitorIcon(isMonitoring);
+
+    // Notificar cambio de estado
+    UIController.showToast(isMonitoring ? 'Monitoreo activado' : 'Monitoreo desactivado', 2000);
   });
 
   // Event listener para el botón de llamada
   UIController.elements.callButton.addEventListener('click', async function() {
     const currentCallSid = UIController.getCurrentCallSid();
 
-    // Si no hay llamada activa, iniciarla
     if (!currentCallSid) {
       startNewCall();
     } else {
-      // Si hay una llamada activa, finalizarla
       endCurrentCall();
     }
   });
@@ -45,32 +50,51 @@ function setupEventListeners() {
 
       // Obtener sessionId actual
       const sessionId = await WebSocketHandler.getSessionId();
+      UIController.setCurrentSessionId(sessionId);
 
       // Iniciar control del agente
       const success = await AgentVoiceCapture.startCapturing(sessionId);
       if (success) {
         UIController.updateTakeoverButton(true);
-        UIController.addLog('[INFO] Tomando control de la llamada como agente humano');
-
-        // Añadir mensaje al chat indicando que el agente ha tomado el control
-        UIController.addChatMessage("El agente humano ha tomado el control de la llamada", true, true);
+        UIController.addLog('[INFO] Agente humano ha tomado el control');
+        UIController.addChatMessage("El agente humano ha tomado el control de la llamada", 'system');
+        UIController.showToast('Control de agente activado', 2000);
       } else {
-        alert("No se pudo activar el micrófono. Por favor, verifica los permisos.");
+        UIController.showToast('Error: No se pudo activar el micrófono', 3000);
       }
     } else {
       // Detener control del agente
       AgentVoiceCapture.stopCapturing();
       UIController.updateTakeoverButton(false);
-      UIController.addLog('[INFO] Dejando el control de la llamada');
-
-      // Añadir mensaje al chat indicando que el agente ha dejado el control
-      UIController.addChatMessage("El agente humano ha dejado el control de la llamada", true, true);
+      UIController.addLog('[INFO] Agente humano ha liberado el control');
+      UIController.addChatMessage("El agente humano ha dejado el control de la llamada", 'system');
+      UIController.showToast('Control devuelto al bot', 2000);
     }
+  });
+
+  // Validación del formulario
+  UIController.elements.userName.addEventListener('input', function(e) {
+    if (e.target.value.length > 50) {
+      e.target.value = e.target.value.substring(0, 50);
+    }
+  });
+
+  UIController.elements.toNumber.addEventListener('input', function(e) {
+    // Permitir solo números, + y espacios
+    e.target.value = e.target.value.replace(/[^0-9+\s-]/g, '');
   });
 }
 
 // Iniciar una nueva llamada
 async function startNewCall() {
+  // Validar que al menos el nombre esté presente
+  const userName = UIController.elements.userName.value.trim();
+  if (!userName) {
+    UIController.showToast('Por favor ingrese el nombre del contacto', 3000);
+    UIController.elements.userName.focus();
+    return;
+  }
+
   // Limpiar el chat para la nueva llamada
   UIController.clearChat();
 
@@ -83,30 +107,39 @@ async function startNewCall() {
 
     // Asegurar que tenemos un sessionId antes de iniciar la llamada
     callData.sessionId = await WebSocketHandler.getSessionId();
+    UIController.setCurrentSessionId(callData.sessionId);
 
-    // Log de depuración para verificar que voice_name está correctamente incluido
-    console.log("Enviando datos de llamada:", callData);
+    console.log("Iniciando llamada con datos:", callData);
 
     // Llamar a la API
     const result = await ApiService.initiateCall(callData);
 
-    // Actualizar UI con la llamada activa
-    UIController.setCurrentCallSid(result.callSid);
-    UIController.updateCallButton(true);
-    UIController.updateConnectionStatus(true);
+    if (result.success) {
+      // Actualizar UI con la llamada activa
+      UIController.setCurrentCallSid(result.callSid);
+      UIController.updateCallButton(true);
+      UIController.updateConnectionStatus(true, 'Conectando...');
 
-    // Añadir mensaje de inicio de llamada al chat
-    UIController.addChatMessage("Llamada iniciada. Conectando...", true, false);
+      // Añadir mensaje de inicio de llamada al chat
+      UIController.addChatMessage("Iniciando llamada...", 'system');
 
-    // Si estaba en modo agente, desactivarlo para la nueva llamada
-    if (UIController.isAgentActive()) {
-      AgentVoiceCapture.stopCapturing();
-      UIController.updateTakeoverButton(false);
+      // Log
+      UIController.addLog(`[INFO] Llamada iniciada - ID: ${result.callSid}`);
+      UIController.showToast('Llamada iniciada correctamente', 2000);
+
+      // Si estaba en modo agente, desactivarlo para la nueva llamada
+      if (UIController.isAgentActive()) {
+        AgentVoiceCapture.stopCapturing();
+        UIController.updateTakeoverButton(false);
+      }
+    } else {
+      throw new Error(result.error || 'Error desconocido');
     }
   } catch (error) {
-    console.error(error);
+    console.error("Error iniciando llamada:", error);
     UIController.updateCallButton(false);
-    alert(error.toString());
+    UIController.showToast(`Error: ${error.message}`, 5000);
+    UIController.addLog(`[ERROR] ${error.message}`);
   }
 }
 
@@ -114,29 +147,42 @@ async function startNewCall() {
 async function endCurrentCall() {
   try {
     const callSid = UIController.getCurrentCallSid();
-    const sessionId = await WebSocketHandler.getSessionId();
+    const sessionId = UIController.getCurrentSessionId() || await WebSocketHandler.getSessionId();
+
+    UIController.addLog('[INFO] Finalizando llamada...');
 
     const result = await ApiService.endCall(callSid, sessionId);
 
-    console.log("Llamada cortada:", result.message);
-    AudioProcessor.clearAudioQueues();
+    if (result.success) {
+      console.log("Llamada finalizada:", result.message);
 
-    // Si estaba en modo agente, desactivarlo
-    if (UIController.isAgentActive()) {
-      AgentVoiceCapture.stopCapturing();
-      UIController.updateTakeoverButton(false);
+      // Limpiar audio
+      AudioProcessor.clearAudioQueues();
+
+      // Si estaba en modo agente, desactivarlo
+      if (UIController.isAgentActive()) {
+        AgentVoiceCapture.stopCapturing();
+        UIController.updateTakeoverButton(false);
+      }
+
+      // Actualizar UI para reflejar llamada finalizada
+      UIController.setCurrentCallSid(null);
+      UIController.updateCallButton(false);
+      UIController.updateConnectionStatus(false, 'Llamada finalizada');
+
+      // Añadir mensaje de finalización al chat
+      UIController.addChatMessage("Llamada finalizada", 'system');
+
+      // Log y notificación
+      UIController.addLog('[INFO] Llamada finalizada correctamente');
+      UIController.showToast('Llamada finalizada', 2000);
+    } else {
+      throw new Error(result.error || 'Error desconocido');
     }
-
-    // Actualizar UI para reflejar llamada finalizada
-    UIController.setCurrentCallSid(null);
-    UIController.updateCallButton(false);
-    UIController.updateConnectionStatus(false, 'Llamada cortada');
-
-    // Añadir mensaje de finalización al chat
-    UIController.addChatMessage("Llamada finalizada", true, false);
   } catch (error) {
-    console.error("Error al cortar la llamada:", error);
-    alert("Error al cortar la llamada.");
+    console.error("Error al finalizar la llamada:", error);
+    UIController.showToast(`Error: ${error.message}`, 5000);
+    UIController.addLog(`[ERROR] ${error.message}`);
   }
 }
 
@@ -149,8 +195,7 @@ async function setupWebSocket() {
         let data;
         try {
           data = JSON.parse(event.data);
-        }
-        catch (e) {
+        } catch (e) {
           data = { type: "log", message: event.data };
         }
 
@@ -158,11 +203,10 @@ async function setupWebSocket() {
         if (data.type === "audio") {
           // Si el agente está activo, no reproducir el audio del bot
           if (UIController.isAgentActive()) {
-            console.log("[WebSocket] Audio del bot ignorado porque el agente está activo");
+            console.log("[WebSocket] Audio del bot ignorado - agente activo");
             return;
           }
 
-          // Usar messageId si disponible (para prevenir duplicados)
           const messageId = data.id || null;
           if (data.payload) {
             AudioProcessor.playBotAudioChunk(data.payload, messageId);
@@ -178,74 +222,115 @@ async function setupWebSocket() {
           return;
         }
 
+        // Actualización del estado de llamada
+        if (data.type === "call_status_update") {
+          UIController.updateCallStatus(data.status, data.message);
+          return;
+        }
+
         // Verificar si es una interrupción
         if (data.type === "interruption" || 
             (typeof data.message === 'string' && data.message.includes("interrupción"))) {
-          console.log("[WebSocket] Interrupción detectada, limpiando colas de audio");
+          console.log("[WebSocket] Interrupción detectada");
           AudioProcessor.clearAudioQueues();
         }
 
-        // Procesar logs y transcripciones
+        // Procesar transcripciones
+        if (data.type === "user_transcript") {
+          UIController.addChatMessage(data.text, 'client');
+          return;
+        }
+
+        if (data.type === "agent_response") {
+          UIController.addChatMessage(data.text, 'bot');
+          return;
+        }
+
+        if (data.type === "agent_message") {
+          UIController.addChatMessage(data.text, 'agent', true);
+          return;
+        }
+
+        // Procesar logs y transcripciones desde texto
         const log = data.message || event.data;
         console.log("Log recibido:", log);
 
-        if (log.includes("Recibido evento de interrupción") || 
-            log.includes("interrupción") || 
-            log.includes("Agente") || 
-            log.includes("interrupting")) {
-          console.log("[WebSocket] Comando de interrupción detectado en logs");
-          AudioProcessor.clearAudioQueues();
-        }
-
+        // Agregar al panel de logs
         UIController.addLog(log);
 
-        // Detectar si un agente tomó o dejó el control
-        if (log.includes("[INFO] Un agente ha tomado el control de la conversación")) {
-          UIController.addLog("[INFO] Un agente humano está controlando la conversación");
-          AudioProcessor.clearAudioQueues();
-        } else if (log.includes("[INFO] El agente ha dejado el control de la conversación")) {
-          UIController.addLog("[INFO] El bot ha retomado el control de la conversación");
+        // Detectar transcripciones en el formato de log
+        if (log.includes("[Twilio] Respuesta del agente:")) {
+          const messageText = log.replace(/.*\[Twilio\] Respuesta del agente:\s*/g, "").trim();
+          const isFromHumanAgent = log.includes("[AGENT]");
+          UIController.addChatMessage(messageText, isFromHumanAgent ? 'agent' : 'bot', isFromHumanAgent);
+        } else if (log.includes("[Twilio] Transcripción del usuario:")) {
+          const messageText = log.replace(/.*\[Twilio\] Transcripción del usuario:\s*/g, "").trim();
+          UIController.addChatMessage(messageText, 'client');
         }
 
-        // Manejar transcripciones para el chat
-        if (log.includes("[LOG] [Twilio] Respuesta del agente:")) {
-          const messageText = log.replace("[LOG] [Twilio] Respuesta del agente:", "").trim();
-          // Determinar si es un mensaje de agente humano o del bot
-          const isFromHumanAgent = log.includes("[AGENT]");
-          UIController.addChatMessage(messageText, true, isFromHumanAgent);
-          UIController.updateConnectionStatus(true);
-        } else if (log.includes("[LOG] [Twilio] Transcripción del usuario:")) {
-          const messageText = log.replace("[LOG] [Twilio] Transcripción del usuario:", "").trim();
-          UIController.addChatMessage(messageText, false);
-        } else if (log.includes("[LOG] [AgentVoice]")) {
-          // Capturar mensajes específicos del agente
-          if (log.includes("Respuesta sintetizada:") || log.includes("Mensaje del agente:")) {
-            // Extraer el mensaje del log
-            let messageText;
-            if (log.includes("Respuesta sintetizada:")) {
-              messageText = log.replace(/.*Respuesta sintetizada: /g, "").trim();
-            } else {
-              messageText = log.replace(/.*Mensaje del agente: /g, "").trim();
-            }
-            // Añadir el mensaje al chat como agente humano
-            UIController.addChatMessage(messageText, true, true);
-          }
+        // Detectar cambios de estado del agente
+        if (log.includes("Un agente ha tomado el control")) {
+          UIController.addLog("[INFO] Agente activo en la conversación");
+          AudioProcessor.clearAudioQueues();
+        } else if (log.includes("El agente ha dejado el control")) {
+          UIController.addLog("[INFO] Bot retomó el control");
+        }
+
+        // Actualizar estado de conexión basado en logs
+        if (log.includes("Conversación conectada") || log.includes("Stream iniciado")) {
+          UIController.updateConnectionStatus(true, 'Conectado');
         }
       },
 
       // Callback onOpen
       function() {
-        UIController.addLog('[INFO] Conexión a logs establecida\n');
+        UIController.addLog('[INFO] Conexión WebSocket establecida');
+        UIController.updateConnectionStatus(true, 'Sistema listo');
       },
 
       // Callback onClose
       function() {
-        UIController.addLog('[Conexión a logs cerrada]\n');
-        UIController.updateConnectionStatus(false);
+        UIController.addLog('[INFO] Conexión WebSocket cerrada');
+        UIController.updateConnectionStatus(false, 'Sin conexión');
       }
     );
   } catch (error) {
     console.error("Error al configurar WebSocket:", error);
-    UIController.addLog('[ERROR] No se pudo establecer la conexión WebSocket\n');
+    UIController.addLog('[ERROR] No se pudo establecer la conexión WebSocket');
+    UIController.showToast('Error de conexión', 5000);
   }
 }
+
+// Configurar actualización periódica de métricas
+function setupMetricsUpdater() {
+  // Actualizar métricas cada 2 segundos si hay una llamada activa
+  setInterval(() => {
+    if (UIController.getCurrentCallSid()) {
+      // Obtener métricas del AudioProcessor
+      const metrics = AudioProcessor.getLatencyMetrics();
+
+      // Actualizar UI con las métricas
+      UIController.updateLatencyMetrics(metrics);
+    }
+  }, 2000);
+}
+
+// Manejar cierre de ventana/pestaña
+window.addEventListener('beforeunload', function(e) {
+  if (UIController.getCurrentCallSid()) {
+    e.preventDefault();
+    e.returnValue = '¿Está seguro de que desea salir? Hay una llamada en curso.';
+  }
+});
+
+// Manejar errores globales
+window.addEventListener('error', function(e) {
+  console.error('Error global:', e.error);
+  UIController.addLog(`[ERROR] ${e.error?.message || 'Error desconocido'}`);
+});
+
+// Manejar promesas rechazadas
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('Promesa rechazada:', e.reason);
+  UIController.addLog(`[ERROR] ${e.reason?.message || e.reason || 'Error desconocido'}`);
+});

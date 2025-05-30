@@ -1,4 +1,4 @@
-// Módulo para manejar la interfaz de usuario
+// Módulo para manejar la interfaz de usuario del operador
 const UIController = (() => {
   // Elementos DOM y estado de la UI
   const elements = {
@@ -14,44 +14,53 @@ const UIController = (() => {
     logs: document.getElementById('logs'),
     userName: document.getElementById('userName'),
     toNumber: document.getElementById('toNumber'),
-    voiceSelected: document.getElementById('voiceSelected')
+    voiceSelected: document.getElementById('voiceSelected'),
+    // Elementos de métricas
+    metricsContainer: document.getElementById('audio-metrics'),
+    toast: document.getElementById('toast'),
+    toastMessage: document.getElementById('toastMessage')
   };
 
   // Estado de la UI
   let currentCallSid = null;
+  let currentSessionId = null;
   let agentActive = false;
+  let callMetrics = {
+    latency: '--',
+    chunksSent: 0,
+    chunksReceived: 0,
+    agentInterventions: 0
+  };
 
   // Actualizar el ícono del botón de monitoreo según su estado
   function updateMonitorIcon(isMonitoring) {
-    if (isMonitoring) {
-      elements.monitorIcon.outerHTML = `<svg id="monitorIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M11 5h2m-2 14h2m-2-7h2m6.586-3.586A2 2 0 0018 7H6a2 2 0 00-1.414.586L3 9v6l1.586 1.414A2 2 0 006 17h12a2 2 0 001.414-.586L21 15V9l-1.414-1.414z" />
-      </svg>`;
-    } else {
-      elements.monitorIcon.outerHTML = `<svg id="monitorIcon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M11 5h2m-2 14h2m-2-7h2m6.586-3.586A2 2 0 0018 7H6a2 2 0 00-1.414.586L3 9v6l1.586 1.414A2 2 0 006 17h12a2 2 0 001.414-.586L21 15V9l-1.414-1.414z" />
-        <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-      </svg>`;
-    }
-    // Actualizar la referencia al ícono después de cambiarlo
-    elements.monitorIcon = document.getElementById('monitorIcon');
+    const iconHTML = isMonitoring
+      ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />`
+      : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+         <line x1="21" y1="9" x2="21" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />`;
+
+    elements.monitorIcon.innerHTML = iconHTML;
   }
 
   // Actualizar el botón de toma de control según su estado
   function updateTakeoverButton(isActive) {
     if (isActive) {
-      elements.takeoverButton.classList.remove("bg-yellow-500", "hover:bg-yellow-600");
+      elements.takeoverButton.classList.remove("bg-amber-500", "hover:bg-amber-600");
       elements.takeoverButton.classList.add("bg-red-500", "hover:bg-red-600");
       elements.takeoverButtonText.textContent = "Dejar control";
       agentActive = true;
+
+      // Actualizar métricas
+      callMetrics.agentInterventions++;
+      updateMetricsDisplay();
     } else {
       elements.takeoverButton.classList.remove("bg-red-500", "hover:bg-red-600");
-      elements.takeoverButton.classList.add("bg-yellow-500", "hover:bg-yellow-600");
-      elements.takeoverButtonText.textContent = "Tomar control";
+      elements.takeoverButton.classList.add("bg-amber-500", "hover:bg-amber-600");
+      elements.takeoverButtonText.textContent = "Intervenir";
       agentActive = false;
     }
+
+    updateAgentStatusMetric();
   }
 
   // Activar o desactivar el botón de toma de control
@@ -61,7 +70,6 @@ const UIController = (() => {
       elements.takeoverButton.classList.remove("opacity-50", "cursor-not-allowed");
     } else {
       elements.takeoverButton.classList.add("opacity-50", "cursor-not-allowed");
-      // Si estaba activo, desactivarlo
       if (agentActive) {
         updateTakeoverButton(false);
       }
@@ -70,30 +78,45 @@ const UIController = (() => {
 
   // Actualizar estado del botón de llamada según estado actual
   function updateCallButton(isActive, isLoading = false) {
+    const callButton = elements.callButton;
+    const callIcon = document.getElementById('callIcon');
+    const buttonText = callButton.querySelector('span');
+
     if (isLoading) {
-      elements.callButton.disabled = true;
-      elements.callButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" /></svg>';
+      callButton.disabled = true;
+      callIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" />`;
+      callIcon.classList.add('animate-spin');
+      buttonText.textContent = 'Conectando';
       return;
     }
 
+    callIcon.classList.remove('animate-spin');
+
     if (isActive) {
       // Llamada activa - mostrar botón de colgar
-      elements.callButton.classList.remove("bg-green-500", "hover:bg-green-600");
-      elements.callButton.classList.add("bg-red-500", "hover:bg-red-600");
-      elements.callButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+      callButton.classList.remove("bg-green-500", "hover:bg-green-600");
+      callButton.classList.add("bg-red-500", "hover:bg-red-600");
+      callIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />`;
+      buttonText.textContent = 'Colgar';
       elements.statusIndicator.classList.replace('bg-red-500', 'bg-green-500');
       elements.statusText.textContent = 'Conectado';
+
       // Habilitar el botón de toma de control cuando hay una llamada activa
       enableTakeoverButton(true);
+
+      // Reiniciar métricas
+      resetCallMetrics();
     } else {
       // Sin llamada activa - mostrar botón de llamar
-      elements.callButton.classList.remove("bg-red-500", "hover:bg-red-600");
-      elements.callButton.classList.add("bg-green-500", "hover:bg-green-600");
-      elements.callButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" /></svg>';
+      callButton.classList.remove("bg-red-500", "hover:bg-red-600");
+      callButton.classList.add("bg-green-500", "hover:bg-green-600");
+      callIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1" />`;
+      buttonText.textContent = 'Llamar';
+
       // Deshabilitar el botón de toma de control cuando no hay llamada activa
       enableTakeoverButton(false);
     }
-    elements.callButton.disabled = false;
+    callButton.disabled = false;
   }
 
   // Actualizar estado de la conexión
@@ -103,97 +126,104 @@ const UIController = (() => {
       elements.statusText.textContent = customText || 'Conectado';
     } else {
       elements.statusIndicator.classList.replace('bg-green-500', 'bg-red-500');
-      elements.statusText.textContent = customText || 'Sin conexión';
+      elements.statusText.textContent = customText || 'Desconectado';
     }
   }
 
-  // Nueva función: Actualizar estado de la llamada en la UI
+  // Actualizar estado de la llamada en la UI
   function updateCallStatus(status, message) {
-    // Actualizar el indicador visual de estado
-    let statusColor = 'bg-green-500';  // Por defecto verde para estados "buenos"
+    let statusColor = 'bg-green-500';
+    let statusMessage = message || status;
 
     switch (status) {
       case 'ringing':
-        statusColor = 'bg-yellow-500';  // Amarillo para llamando
+        statusColor = 'bg-yellow-500';
+        statusMessage = 'Llamando...';
         break;
       case 'connected':
-        statusColor = 'bg-green-500';   // Verde para conectado
+        statusColor = 'bg-green-500';
+        statusMessage = 'Conectado';
         break;
       case 'busy':
+        statusColor = 'bg-red-500';
+        statusMessage = 'Ocupado';
+        break;
       case 'no-answer':
+        statusColor = 'bg-orange-500';
+        statusMessage = 'Sin respuesta';
+        break;
       case 'failed':
       case 'canceled':
       case 'ended':
-        statusColor = 'bg-red-500';     // Rojo para estados finalizados o de error
+        statusColor = 'bg-red-500';
+        statusMessage = message || 'Llamada finalizada';
         break;
       case 'starting':
-        statusColor = 'bg-blue-500';    // Azul para iniciando
+        statusColor = 'bg-blue-500';
+        statusMessage = 'Iniciando...';
         break;
-      default:
-        statusColor = 'bg-gray-500';    // Gris para otros estados
     }
 
-    // Actualizar el indicador de estado
-    elements.statusIndicator.className = `w-3 h-3 rounded-full ${statusColor}`;
-    elements.statusText.textContent = message || status;
+    elements.statusIndicator.className = `absolute w-3 h-3 rounded-full status-badge ${statusColor}`;
+    elements.statusText.textContent = statusMessage;
 
-    // Si es un estado final, también agregar un mensaje al chat
-    if (['busy', 'no-answer', 'failed', 'canceled', 'ended'].includes(status)) {
-      addChatMessage(message || `Llamada finalizada: ${status}`, true, false);
+    // Agregar mensaje al chat para estados importantes
+    if (['connected', 'busy', 'no-answer', 'failed', 'ended'].includes(status)) {
+      addChatMessage(statusMessage, 'system');
     }
-
-    // Si es un estado inicial, también agregar mensaje
-    if (status === 'starting' || status === 'ringing') {
-      addChatMessage(message || `Estado: ${status}`, true, false);
-    }
-
-    // Si la llamada está conectada, agregar mensaje de conexión
-    if (status === 'connected') {
-      addChatMessage(message || 'Llamada conectada', true, false);
-    }
-
-    // Log para depuración
-    console.log(`[UIController] Estado de llamada actualizado: ${status} - ${message}`);
   }
 
-  // Agregar mensaje al chat con los nuevos estilos
-  function addChatMessage(text, isBot, isAgent = false) {
+  // Agregar mensaje al chat con estilos mejorados
+  function addChatMessage(text, type = 'client', isAgent = false) {
     const messageDiv = document.createElement("div");
+    messageDiv.className = "animate-fadeIn";
 
-    if (isBot) {
+    if (type === 'system') {
+      // Mensajes del sistema
+      messageDiv.className += " text-center py-2";
+      messageDiv.innerHTML = `
+        <span class="inline-block bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full">
+          ${text}
+        </span>
+      `;
+    } else if (type === 'bot' || type === 'agent' || type === true) {
       // Mensajes del bot o agente
-      messageDiv.className = "chat-message server bg-gray-200 p-2 rounded-lg mb-2 max-w-[70%]";
+      const speaker = isAgent ? 'Agente' : 'Bot';
+      const color = isAgent ? 'amber' : 'blue';
 
-      // Indicador visual según si es agente o bot
-      if (isAgent) {
-        // Estilo para el agente (amarillo)
-        messageDiv.classList.add("border-l-4", "border-yellow-500");
-        const agentIndicator = document.createElement("div");
-        agentIndicator.className = "text-xs text-yellow-600 font-bold mb-1";
-        agentIndicator.textContent = "Agente";
-        messageDiv.prepend(agentIndicator);
-      } else {
-        // Estilo para el bot (azul)
-        messageDiv.classList.add("border-l-4", "border-blue-500");
-        const botIndicator = document.createElement("div");
-        botIndicator.className = "text-xs text-blue-600 font-bold mb-1";
-        botIndicator.textContent = "Bot";
-        messageDiv.prepend(botIndicator);
-      }
+      messageDiv.className += " flex justify-start mb-3";
+      messageDiv.innerHTML = `
+        <div class="max-w-[70%]">
+          <div class="flex items-center mb-1">
+            <span class="text-xs font-medium text-${color}-600">${speaker}</span>
+            <span class="text-xs text-slate-400 ml-2">${new Date().toLocaleTimeString()}</span>
+          </div>
+          <div class="bg-${color}-50 border-l-3 border-${color}-400 rounded-lg px-4 py-2">
+            <p class="text-sm text-slate-700">${text}</p>
+          </div>
+        </div>
+      `;
     } else {
-      // Mensajes del cliente (verde)
-      messageDiv.className = "chat-message client bg-green-100 p-2 rounded-lg mb-2 max-w-[70%] ml-auto border-r-4 border-green-500";
-
-      // Agregar indicador para el cliente
-      const clientIndicator = document.createElement("div");
-      clientIndicator.className = "text-xs text-green-600 font-bold mb-1 text-right";
-      clientIndicator.textContent = "Cliente";
-      messageDiv.prepend(clientIndicator);
+      // Mensajes del cliente
+      messageDiv.className += " flex justify-end mb-3";
+      messageDiv.innerHTML = `
+        <div class="max-w-[70%]">
+          <div class="flex items-center justify-end mb-1">
+            <span class="text-xs text-slate-400 mr-2">${new Date().toLocaleTimeString()}</span>
+            <span class="text-xs font-medium text-green-600">Cliente</span>
+          </div>
+          <div class="bg-green-50 border-r-3 border-green-400 rounded-lg px-4 py-2">
+            <p class="text-sm text-slate-700">${text}</p>
+          </div>
+        </div>
+      `;
     }
 
-    const textContainer = document.createElement("div");
-    textContainer.textContent = text;
-    messageDiv.appendChild(textContainer);
+    // Si el chatBox muestra el mensaje de placeholder, limpiarlo
+    const placeholder = elements.chatBox.querySelector('.text-center.text-slate-400');
+    if (placeholder) {
+      placeholder.remove();
+    }
 
     elements.chatBox.appendChild(messageDiv);
     elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
@@ -201,21 +231,124 @@ const UIController = (() => {
 
   // Limpiar el chat
   function clearChat() {
-    elements.chatBox.innerHTML = "";
+    elements.chatBox.innerHTML = `
+      <div class="text-center text-slate-400 py-8">
+        <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        </svg>
+        <p class="text-sm">Inicia una llamada para ver la conversación</p>
+      </div>
+    `;
   }
 
-  // Agregar log al panel de logs
+  // Agregar log al panel de logs con formato mejorado
   function addLog(text) {
-    elements.logs.innerHTML += text + '\n';
-    setTimeout(() => { elements.logs.scrollTop = elements.logs.scrollHeight; }, 10);
+    const timestamp = new Date().toLocaleTimeString();
+    const formattedLog = `[${timestamp}] ${text}`;
+
+    elements.logs.innerHTML += formattedLog + '\n';
+    setTimeout(() => { 
+      elements.logs.scrollTop = elements.logs.scrollHeight; 
+    }, 10);
+  }
+
+  // Mostrar notificación toast
+  function showToast(message, duration = 3000) {
+    elements.toastMessage.textContent = message;
+    elements.toast.classList.remove('hidden', 'translate-y-full');
+
+    setTimeout(() => {
+      elements.toast.classList.add('translate-y-full');
+      setTimeout(() => {
+        elements.toast.classList.add('hidden');
+      }, 300);
+    }, duration);
+  }
+
+  // Actualizar métricas en la UI
+  function updateMetricsDisplay() {
+    if (!elements.metricsContainer) return;
+
+    const metricsHTML = `
+      <h3 class="text-lg font-semibold text-slate-800 mb-4">Métricas de Audio</h3>
+
+      <div class="space-y-3">
+        <div class="metric-card bg-slate-50 rounded-lg p-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-slate-600">Latencia</span>
+            <span class="text-sm font-semibold text-slate-800 metric-value">${callMetrics.latency} ms</span>
+          </div>
+        </div>
+
+        <div class="metric-card bg-slate-50 rounded-lg p-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-slate-600">Chunks enviados</span>
+            <span class="text-sm font-semibold text-slate-800 metric-value">${callMetrics.chunksSent}</span>
+          </div>
+        </div>
+
+        <div class="metric-card bg-slate-50 rounded-lg p-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-slate-600">Chunks recibidos</span>
+            <span class="text-sm font-semibold text-slate-800 metric-value">${callMetrics.chunksReceived}</span>
+          </div>
+        </div>
+
+        <div class="metric-card bg-slate-50 rounded-lg p-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-slate-600">Intervenciones</span>
+            <span class="text-sm font-semibold text-slate-800 metric-value">${callMetrics.agentInterventions}</span>
+          </div>
+        </div>
+
+        <div class="metric-card bg-slate-50 rounded-lg p-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-slate-600">Estado del agente</span>
+            <span class="text-sm font-semibold ${agentActive ? 'text-amber-600' : 'text-blue-600'}">${agentActive ? 'Agente activo' : 'Bot activo'}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    elements.metricsContainer.innerHTML = metricsHTML;
+  }
+
+  // Actualizar solo el estado del agente en las métricas
+  function updateAgentStatusMetric() {
+    const statusElement = elements.metricsContainer?.querySelector('.metric-card:last-child span:last-child');
+    if (statusElement) {
+      statusElement.className = `text-sm font-semibold ${agentActive ? 'text-amber-600' : 'text-blue-600'}`;
+      statusElement.textContent = agentActive ? 'Agente activo' : 'Bot activo';
+    }
+  }
+
+  // Actualizar métricas de latencia
+  function updateLatencyMetrics(metrics) {
+    if (metrics.avgResponseLatency !== undefined) {
+      callMetrics.latency = metrics.avgResponseLatency;
+    }
+    if (metrics.audioChunksReceived !== undefined) {
+      callMetrics.chunksReceived = metrics.audioChunksReceived;
+    }
+    updateMetricsDisplay();
+  }
+
+  // Reiniciar métricas de llamada
+  function resetCallMetrics() {
+    callMetrics = {
+      latency: '--',
+      chunksSent: 0,
+      chunksReceived: 0,
+      agentInterventions: 0
+    };
+    updateMetricsDisplay();
   }
 
   // Obtener datos del formulario para iniciar llamada
   function getCallFormData() {
     const voiceSelect = elements.voiceSelected;
-    // Corregido: Usamos las variables con snake_case para mantener compatibilidad
     return {
-      user_name: elements.userName.value,
+      user_name: elements.userName.value || 'Cliente',
       to_number: elements.toNumber.value || null,
       voice_id: voiceSelect.value,
       voice_name: voiceSelect.options[voiceSelect.selectedIndex].getAttribute('data-nombre')
@@ -232,6 +365,16 @@ const UIController = (() => {
     return currentCallSid;
   }
 
+  // Establecer SessionId actual
+  function setCurrentSessionId(sessionId) {
+    currentSessionId = sessionId;
+  }
+
+  // Obtener SessionId actual
+  function getCurrentSessionId() {
+    return currentSessionId;
+  }
+
   // Verificar si el agente está activo
   function isAgentActive() {
     return agentActive;
@@ -245,14 +388,19 @@ const UIController = (() => {
     enableTakeoverButton,
     updateCallButton,
     updateConnectionStatus,
-    updateCallStatus,  // Nueva función expuesta
+    updateCallStatus,
     addChatMessage,
     clearChat,
     addLog,
+    showToast,
     getCallFormData,
     setCurrentCallSid,
     getCurrentCallSid,
-    isAgentActive
+    setCurrentSessionId,
+    getCurrentSessionId,
+    isAgentActive,
+    updateLatencyMetrics,
+    updateMetricsDisplay
   };
 })();
 

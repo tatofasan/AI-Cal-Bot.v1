@@ -3,126 +3,275 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TalkFlow - Login</title>
-  <!-- Incluir Tailwind CSS desde CDN -->
+  <title>TalkFlow - Acceso</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    .login-container {
-      background-image: linear-gradient(to bottom, #f9fafb, #f3f4f6);
-      border: 1px solid #e5e7eb;
+    body { font-family: 'Inter', sans-serif; }
+    
+    .glass-morphism {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
     }
-    /* Animación para el botón */
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
+    
+    .animate-float {
+      animation: float 6s ease-in-out infinite;
     }
-    .btn-pulse:hover {
-      animation: pulse 1s infinite;
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
   </style>
 </head>
-<body class="bg-gray-50 font-sans antialiased">
-  <!-- Header -->
-  <header class="bg-blue-600 text-white p-4 shadow-md">
-    <div class="max-w-md mx-auto flex items-center justify-center">
-      <h1 class="text-3xl font-extrabold">
-        <span class="text-white">Talk</span><span class="text-blue-300">Flow</span>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
+  <!-- Elementos decorativos de fondo -->
+  <div class="absolute inset-0 overflow-hidden">
+    <div class="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float"></div>
+    <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" style="animation-delay: 2s;"></div>
+    <div class="absolute top-40 left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-float" style="animation-delay: 4s;"></div>
+  </div>
+
+  <!-- Contenedor principal -->
+  <div class="relative z-10 w-full max-w-md">
+    <!-- Logo y título -->
+    <div class="text-center mb-8">
+      <h1 class="text-5xl font-bold mb-2">
+        <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          TalkFlow
+        </span>
       </h1>
+      <p class="text-slate-600">Sistema Inteligente de Call Center</p>
     </div>
-  </header>
-  
-  <main class="max-w-md mx-auto p-6">
-    <div class="login-container bg-white shadow-md rounded-lg px-8 pt-6 pb-8 mb-4">
-      <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Iniciar Sesión</h2>
-      
-      <div id="loginError" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-        <span id="errorMessage">Error al iniciar sesión.</span>
+
+    <!-- Formulario de login -->
+    <div class="glass-morphism rounded-2xl shadow-xl p-8">
+      <!-- Mensaje de error -->
+      <div id="loginError" class="hidden mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+        <div class="flex items-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span id="errorMessage">Error al iniciar sesión</span>
+        </div>
       </div>
-      
+
       <form id="loginForm" class="space-y-6">
         <div>
-          <label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
-          <input type="email" id="email" name="email" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+          <label for="email" class="block text-sm font-medium text-slate-700 mb-2">
+            Correo electrónico
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+              </svg>
+            </div>
+            <input 
+              type="email" 
+              id="email" 
+              name="email" 
+              class="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              placeholder="usuario@ejemplo.com"
+              required
+            >
+          </div>
         </div>
-        
+
         <div>
-          <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Contraseña:</label>
-          <input type="password" id="password" name="password" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+          <label for="password" class="block text-sm font-medium text-slate-700 mb-2">
+            Contraseña
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+              </svg>
+            </div>
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              class="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              placeholder="••••••••"
+              required
+            >
+          </div>
         </div>
-        
-        <div class="flex items-center justify-between">
-          <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline btn-pulse">
+
+        <div>
+          <button 
+            type="submit"
+            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-2.5 px-4 rounded-lg hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all transform hover:scale-[1.02]"
+          >
             Iniciar Sesión
           </button>
-          <button type="button" id="createUserBtn" class="text-blue-500 hover:text-blue-700 font-bold">
-            Crear Usuario
+        </div>
+
+        <div class="text-center pt-4 border-t border-slate-200">
+          <button 
+            type="button" 
+            id="createUserBtn"
+            class="text-sm text-blue-600 hover:text-blue-700 font-medium"
+          >
+            ¿Necesitas crear un usuario?
           </button>
         </div>
       </form>
     </div>
-  </main>
 
-  <!-- PIN Modal -->
-  <div id="pinModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4">Ingrese PIN de Administrador</h3>
-      <p class="text-gray-600 mb-4">Se requiere un PIN de administrador para crear nuevos usuarios.</p>
-      
-      <div class="mb-4">
-        <input type="password" id="pinInput" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" placeholder="Ingrese PIN">
+    <!-- Footer -->
+    <div class="text-center mt-8 text-sm text-slate-500">
+      <p>&copy; 2024 TalkFlow. Todos los derechos reservados.</p>
+    </div>
+  </div>
+
+  <!-- Modal de PIN -->
+  <div id="pinModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-slate-800">Verificación de Administrador</h3>
+        <button id="closePinModalBtn" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
       
-      <div class="flex justify-end space-x-3">
-        <button id="cancelPinBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+      <p class="text-sm text-slate-600 mb-4">
+        Ingrese el PIN de administrador para continuar con la creación de usuarios.
+      </p>
+      
+      <div class="mb-4">
+        <input 
+          type="password" 
+          id="pinInput" 
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          placeholder="Ingrese el PIN de 4 dígitos"
+          maxlength="4"
+        >
+      </div>
+      
+      <div class="flex space-x-3">
+        <button 
+          id="cancelPinBtn"
+          class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors"
+        >
           Cancelar
         </button>
-        <button id="submitPinBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-          Validar
+        <button 
+          id="submitPinBtn"
+          class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Verificar
         </button>
       </div>
     </div>
   </div>
 
-  <!-- User Creation Modal -->
-  <div id="userCreationModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4">Crear Nuevo Usuario</h3>
+  <!-- Modal de Creación de Usuario -->
+  <div id="userCreationModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-slate-800">Crear Nuevo Usuario</h3>
+        <button id="closeUserModalBtn" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
       
       <form id="createUserForm" class="space-y-4">
         <div>
-          <label for="newEmail" class="block text-gray-700 text-sm font-bold mb-2">Email:</label>
-          <input type="email" id="newEmail" name="newEmail" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+          <label for="newEmail" class="block text-sm font-medium text-slate-700 mb-1">
+            Correo electrónico
+          </label>
+          <input 
+            type="email" 
+            id="newEmail" 
+            name="newEmail" 
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="nuevo.usuario@ejemplo.com"
+            required
+          >
         </div>
         
         <div>
-          <label for="newPassword" class="block text-gray-700 text-sm font-bold mb-2">Contraseña:</label>
-          <input type="password" id="newPassword" name="newPassword" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+          <label for="newPassword" class="block text-sm font-medium text-slate-700 mb-1">
+            Contraseña
+          </label>
+          <input 
+            type="password" 
+            id="newPassword" 
+            name="newPassword" 
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Mínimo 8 caracteres"
+            minlength="8"
+            required
+          >
         </div>
         
         <div>
-          <label for="confirmPassword" class="block text-gray-700 text-sm font-bold mb-2">Confirmar Contraseña:</label>
-          <input type="password" id="confirmPassword" name="confirmPassword" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+          <label for="confirmPassword" class="block text-sm font-medium text-slate-700 mb-1">
+            Confirmar contraseña
+          </label>
+          <input 
+            type="password" 
+            id="confirmPassword" 
+            name="confirmPassword" 
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            placeholder="Repita la contraseña"
+            minlength="8"
+            required
+          >
         </div>
         
         <div>
-          <label class="block text-gray-700 text-sm font-bold mb-2">Tipo de Usuario:</label>
-          <div class="flex space-x-4">
-            <label class="inline-flex items-center">
-              <input type="radio" name="userType" value="operador" class="form-radio" checked>
-              <span class="ml-2">Operador</span>
+          <label class="block text-sm font-medium text-slate-700 mb-2">
+            Tipo de usuario
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="relative flex items-center p-3 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="radio" name="userType" value="operador" class="sr-only peer" checked>
+              <div class="flex items-center justify-center w-full">
+                <svg class="w-5 h-5 mr-2 text-slate-400 peer-checked:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1"></path>
+                </svg>
+                <span class="text-sm font-medium text-slate-700 peer-checked:text-blue-600">Operador</span>
+              </div>
+              <div class="absolute inset-0 border-2 border-transparent peer-checked:border-blue-600 rounded-lg pointer-events-none"></div>
             </label>
-            <label class="inline-flex items-center">
-              <input type="radio" name="userType" value="supervisor" class="form-radio">
-              <span class="ml-2">Supervisor</span>
+            
+            <label class="relative flex items-center p-3 border border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="radio" name="userType" value="supervisor" class="sr-only peer">
+              <div class="flex items-center justify-center w-full">
+                <svg class="w-5 h-5 mr-2 text-slate-400 peer-checked:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <span class="text-sm font-medium text-slate-700 peer-checked:text-blue-600">Supervisor</span>
+              </div>
+              <div class="absolute inset-0 border-2 border-transparent peer-checked:border-blue-600 rounded-lg pointer-events-none"></div>
             </label>
           </div>
         </div>
         
-        <div class="flex justify-end space-x-3">
-          <button type="button" id="cancelCreateBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+        <div class="flex space-x-3 pt-4">
+          <button 
+            type="button" 
+            id="cancelCreateBtn"
+            class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors"
+          >
             Cancelar
           </button>
-          <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+          <button 
+            type="submit"
+            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
             Crear Usuario
           </button>
         </div>
@@ -130,9 +279,14 @@
     </div>
   </div>
 
-  <!-- Toast for notifications -->
-  <div id="toast" class="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow hidden">
-    Operación exitosa
+  <!-- Toast para notificaciones -->
+  <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg hidden transition-all transform translate-y-full">
+    <div class="flex items-center space-x-3">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span id="toastMessage">Notificación</span>
+    </div>
   </div>
 
   <script>
@@ -146,17 +300,24 @@
       const pinInput = document.getElementById('pinInput');
       const submitPinBtn = document.getElementById('submitPinBtn');
       const cancelPinBtn = document.getElementById('cancelPinBtn');
+      const closePinModalBtn = document.getElementById('closePinModalBtn');
       const userCreationModal = document.getElementById('userCreationModal');
       const createUserForm = document.getElementById('createUserForm');
       const cancelCreateBtn = document.getElementById('cancelCreateBtn');
+      const closeUserModalBtn = document.getElementById('closeUserModalBtn');
       const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
 
       // Funciones para mostrar/ocultar toast
       const showToast = (message, duration = 3000) => {
-        toast.textContent = message;
-        toast.classList.remove('hidden');
+        toastMessage.textContent = message;
+        toast.classList.remove('hidden', 'translate-y-full');
+        
         setTimeout(() => {
-          toast.classList.add('hidden');
+          toast.classList.add('translate-y-full');
+          setTimeout(() => {
+            toast.classList.add('hidden');
+          }, 300);
         }, duration);
       };
 
@@ -176,12 +337,10 @@
         const user = users.find(u => u.email === email && u.password === password);
         
         if (user) {
-          // Enviar credenciales al servidor para crear una sesión
+          // Enviar credenciales al servidor
           fetch('/api/auth/login', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: user.email,
               password: user.password,
@@ -191,8 +350,10 @@
           .then(response => response.json())
           .then(data => {
             if (data.success) {
-              // Redirigir según el tipo de usuario
-              window.location.href = user.type === 'supervisor' ? '/dashboard' : '/';
+              showToast('Inicio de sesión exitoso', 1500);
+              setTimeout(() => {
+                window.location.href = data.redirectTo || '/';
+              }, 1500);
             } else {
               errorMessage.textContent = data.error || 'Error de autenticación';
               loginError.classList.remove('hidden');
@@ -204,22 +365,23 @@
             loginError.classList.remove('hidden');
           });
         } else {
-          // Mostrar error
           errorMessage.textContent = 'Email o contraseña incorrectos';
           loginError.classList.remove('hidden');
         }
       });
 
-      // Event listeners para mostrar modal de PIN
+      // Mostrar modal de PIN
       createUserBtn.addEventListener('click', function() {
         pinModal.classList.remove('hidden');
         pinInput.focus();
       });
 
-      // Event listeners para cerrar modal de PIN
-      cancelPinBtn.addEventListener('click', function() {
-        pinModal.classList.add('hidden');
-        pinInput.value = '';
+      // Cerrar modal de PIN
+      [cancelPinBtn, closePinModalBtn].forEach(btn => {
+        btn.addEventListener('click', function() {
+          pinModal.classList.add('hidden');
+          pinInput.value = '';
+        });
       });
 
       // Validar PIN
@@ -231,13 +393,24 @@
           pinInput.value = '';
         } else {
           showToast('PIN incorrecto', 3000);
+          pinInput.value = '';
+          pinInput.focus();
         }
       });
 
-      // Cancelar creación de usuario
-      cancelCreateBtn.addEventListener('click', function() {
-        userCreationModal.classList.add('hidden');
-        createUserForm.reset();
+      // Enter en PIN input
+      pinInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          submitPinBtn.click();
+        }
+      });
+
+      // Cerrar modal de creación
+      [cancelCreateBtn, closeUserModalBtn].forEach(btn => {
+        btn.addEventListener('click', function() {
+          userCreationModal.classList.add('hidden');
+          createUserForm.reset();
+        });
       });
 
       // Crear nuevo usuario
@@ -249,7 +422,12 @@
         const confirmPassword = document.getElementById('confirmPassword').value;
         const userType = document.querySelector('input[name="userType"]:checked').value;
         
-        // Validaciones básicas
+        // Validaciones
+        if (newPassword.length < 8) {
+          showToast('La contraseña debe tener al menos 8 caracteres', 3000);
+          return;
+        }
+        
         if (newPassword !== confirmPassword) {
           showToast('Las contraseñas no coinciden', 3000);
           return;
@@ -279,6 +457,31 @@
         userCreationModal.classList.add('hidden');
         createUserForm.reset();
         showToast('Usuario creado exitosamente', 3000);
+      });
+
+      // Cerrar modales con Escape
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          if (!pinModal.classList.contains('hidden')) {
+            pinModal.classList.add('hidden');
+            pinInput.value = '';
+          }
+          if (!userCreationModal.classList.contains('hidden')) {
+            userCreationModal.classList.add('hidden');
+            createUserForm.reset();
+          }
+        }
+      });
+
+      // Click fuera del modal para cerrar
+      [pinModal, userCreationModal].forEach(modal => {
+        modal.addEventListener('click', function(e) {
+          if (e.target === modal) {
+            modal.classList.add('hidden');
+            if (modal === pinModal) pinInput.value = '';
+            if (modal === userCreationModal) createUserForm.reset();
+          }
+        });
       });
     });
   </script>

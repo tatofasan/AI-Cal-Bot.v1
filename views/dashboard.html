@@ -3,218 +3,334 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TalkFlow Dashboard</title>
-  <!-- Incluir Tailwind CSS desde CDN - Solo para desarrollo -->
+  <title>TalkFlow - Centro de Control</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Estilos adicionales para el dashboard */
-    .dashboard-container {
-      background-image: linear-gradient(to bottom, #f9fafb, #f3f4f6);
-      border: 1px solid #e5e7eb;
+    body { font-family: 'Inter', sans-serif; }
+    
+    .glass-morphism {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
     }
-    .call-card {
-      transition: all 0.2s ease-in-out;
+    
+    .status-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
-    .call-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    
+    @keyframes pulse {
+      0%, 100% { 
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% { 
+        opacity: .8;
+        transform: scale(1.1);
+      }
     }
-    /* Indicadores de estado */
-    .status-indicator {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-right: 5px;
+    
+    .call-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
     }
-    .status-active {
-      background-color: #10B981; /* Verde */
-      box-shadow: 0 0 5px #10B981;
+    
+    .ghost-call-indicator {
+      animation: flash 1s ease-in-out infinite;
     }
-    .status-ended {
-      background-color: #EC4899; /* Rosa */
+    
+    @keyframes flash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
-    .status-agent {
-      background-color: #F59E0B; /* Amarillo */
-      box-shadow: 0 0 5px #F59E0B;
+    
+    .metric-value {
+      font-variant-numeric: tabular-nums;
     }
-    /* Animación para nuevas llamadas */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+    
+    .log-container {
+      scrollbar-width: thin;
+      scrollbar-color: #10B981 #0F172A;
     }
-    .new-call {
-      animation: fadeIn 0.5s ease-out;
+    
+    .log-container::-webkit-scrollbar {
+      width: 6px;
     }
-    /* Estilos para transcripciones */
-    .chat-container {
-      max-height: 200px;
-      overflow-y: auto;
-      background-color: #ffffff;
+    
+    .log-container::-webkit-scrollbar-track {
+      background: #0F172A;
     }
-    .chat-message {
-      margin-bottom: 8px;
-      padding: 8px;
-      border-radius: 8px;
-    }
-    .chat-message.bot {
-      background-color: #EFF6FF;
-      border-left: 3px solid #3B82F6;
-    }
-    .chat-message.agent {
-      background-color: #FEF3C7;
-      border-left: 3px solid #F59E0B;
-    }
-    .chat-message.client {
-      background-color: #ECFDF5;
-      border-left: 3px solid #10B981;
+    
+    .log-container::-webkit-scrollbar-thumb {
+      background: #10B981;
+      border-radius: 3px;
     }
   </style>
 </head>
-<body class="bg-gray-50 font-sans antialiased">
-  <!-- Header con título del dashboard -->
-  <header class="bg-blue-600 text-white p-4 shadow-md">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
-      <div class="flex items-center">
-        <h1 class="text-3xl font-extrabold">
-          <span class="text-white">Talk</span><span class="text-blue-300">Flow</span>
-          <span class="text-xl font-normal ml-2">Dashboard</span>
-        </h1>
-      </div>
-      <div class="flex items-center space-x-4">
-        <span id="connectionStatus" class="flex items-center">
-          <span class="w-3 h-3 rounded-full bg-red-500" id="statusIndicator"></span>
-          <span id="statusText" class="ml-2">Sin conexión</span>
-        </span>
-        <div id="userInfo" class="flex items-center text-sm">
-          <span id="userEmail">Supervisor</span>
-          <a href="/" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition ml-4">
-            Vista de agente
-          </a>
-          <button id="logoutBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition ml-2">
-            Cerrar Sesión
-          </button>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+  <!-- Header -->
+  <header class="glass-morphism shadow-sm border-b border-slate-200">
+    <div class="mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo y título -->
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center">
+            <span class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+              TalkFlow
+            </span>
+            <span class="ml-2 text-sm text-slate-500">Centro de Control</span>
+          </div>
         </div>
-        <button id="refreshButton" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Actualizar
-        </button>
+        
+        <!-- Controles y estado -->
+        <div class="flex items-center space-x-6">
+          <!-- Estado de conexión -->
+          <div class="flex items-center space-x-2">
+            <div class="relative">
+              <span id="statusIndicator" class="absolute w-3 h-3 bg-red-500 rounded-full status-pulse"></span>
+              <span class="w-3 h-3 bg-red-500 rounded-full opacity-30 block"></span>
+            </div>
+            <span id="statusText" class="text-sm font-medium text-slate-700">Desconectado</span>
+          </div>
+          
+          <!-- Botones de acción -->
+          <div class="flex items-center space-x-3">
+            <button 
+              id="refreshButton"
+              class="inline-flex items-center px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              Actualizar
+            </button>
+            
+            <a 
+              href="/"
+              class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1"></path>
+              </svg>
+              Vista Operador
+            </a>
+          </div>
+          
+          <!-- Info de usuario -->
+          <div class="flex items-center space-x-3 border-l pl-6 border-slate-200">
+            <div class="text-right">
+              <p class="text-sm font-medium text-slate-700" id="userEmail">supervisor@talkflow.com</p>
+              <p class="text-xs text-slate-500">Supervisor</p>
+            </div>
+            <button id="logoutBtn" class="text-slate-400 hover:text-slate-600 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto p-6">
-    <!-- Estadísticas generales -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Estadísticas generales</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-blue-50 rounded-lg p-4 border border-blue-100">
-          <h3 class="text-lg font-medium text-blue-800">Llamadas activas</h3>
-          <p id="activeCallsCount" class="text-3xl font-bold text-blue-600">0</p>
+  <main class="mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Métricas generales -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-600">Llamadas Activas</p>
+            <p id="activeCallsCount" class="text-3xl font-bold text-slate-900 metric-value">0</p>
+          </div>
+          <div class="p-3 bg-green-100 rounded-lg">
+            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1"></path>
+            </svg>
+          </div>
         </div>
-        <div class="bg-green-50 rounded-lg p-4 border border-green-100">
-          <h3 class="text-lg font-medium text-green-800">Llamadas finalizadas (últimos 30m)</h3>
-          <p id="recentCallsCount" class="text-3xl font-bold text-green-600">0</p>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-600">Finalizadas (30m)</p>
+            <p id="recentCallsCount" class="text-3xl font-bold text-slate-900 metric-value">0</p>
+          </div>
+          <div class="p-3 bg-blue-100 rounded-lg">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
         </div>
-        <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-100">
-          <h3 class="text-lg font-medium text-yellow-800">Agentes activos</h3>
-          <p id="activeAgentsCount" class="text-3xl font-bold text-yellow-600">0</p>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-600">Agentes Activos</p>
+            <p id="activeAgentsCount" class="text-3xl font-bold text-slate-900 metric-value">0</p>
+          </div>
+          <div class="p-3 bg-amber-100 rounded-lg">
+            <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-600">Llamadas Fantasma</p>
+            <p id="ghostCallsCount" class="text-3xl font-bold text-red-600 metric-value">0</p>
+          </div>
+          <div class="p-3 bg-red-100 rounded-lg">
+            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Lista de llamadas -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-semibold text-gray-800">Llamadas activas</h2>
-        <div class="flex space-x-2">
-          <span class="flex items-center text-sm text-gray-600">
-            <span class="status-indicator status-active"></span> En curso
-          </span>
-          <span class="flex items-center text-sm text-gray-600 ml-4">
-            <span class="status-indicator status-agent"></span> Con agente
-          </span>
-          <span class="flex items-center text-sm text-gray-600 ml-4">
-            <span class="status-indicator status-ended"></span> Finalizada
-          </span>
+    <!-- Panel principal con tabs -->
+    <div class="bg-white rounded-xl shadow-sm">
+      <!-- Tabs -->
+      <div class="border-b border-slate-200">
+        <nav class="flex -mb-px px-6">
+          <button 
+            id="tab-active-calls"
+            class="py-3 px-1 border-b-2 border-blue-600 text-sm font-medium text-blue-600 mr-8"
+          >
+            Llamadas Activas
+          </button>
+          <button 
+            id="tab-recent-calls"
+            class="py-3 px-1 border-b-2 border-transparent text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 mr-8"
+          >
+            Llamadas Recientes
+          </button>
+        </nav>
+      </div>
+
+      <!-- Contenido de llamadas -->
+      <div class="p-6">
+        <!-- Indicadores de estado -->
+        <div class="flex items-center space-x-6 mb-4 text-sm">
+          <div class="flex items-center">
+            <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+            <span class="text-slate-600">En curso</span>
+          </div>
+          <div class="flex items-center">
+            <span class="w-2 h-2 bg-amber-500 rounded-full mr-2"></span>
+            <span class="text-slate-600">Con agente</span>
+          </div>
+          <div class="flex items-center">
+            <span class="w-2 h-2 bg-red-500 rounded-full mr-2 ghost-call-indicator"></span>
+            <span class="text-slate-600">Llamada fantasma</span>
+          </div>
+        </div>
+
+        <!-- Grid de llamadas -->
+        <div id="callsContainer" class="call-grid">
+          <!-- Las tarjetas se generan dinámicamente -->
+          <div class="flex items-center justify-center h-48 bg-slate-50 rounded-lg">
+            <div class="text-center">
+              <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.518 4.556a1 1 0 01-.21.915L8.532 11.97a11.01 11.01 0 005.516 5.517l1.822-1.797a1 1 0 01.915-.21l4.556 1.518a1 1 0 01.684.949V19a2 2 0 01-2 2h-1"></path>
+              </svg>
+              <p class="text-sm text-slate-500">Cargando llamadas...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensaje cuando no hay llamadas -->
+        <div id="noCallsMessage" class="hidden text-center py-12">
+          <svg class="w-16 h-16 mx-auto mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+          </svg>
+          <p class="text-slate-500">No hay llamadas activas en este momento</p>
         </div>
       </div>
+    </div>
 
-      <!-- Tabs para cambiar entre llamadas activas y recientes -->
-      <div class="mb-4 border-b border-gray-200">
-        <ul class="flex flex-wrap -mb-px">
-          <li class="mr-2">
-            <button id="tab-active-calls" class="inline-block py-2 px-4 text-blue-600 border-b-2 border-blue-600 rounded-t-lg active">
-              Llamadas activas
-            </button>
-          </li>
-          <li class="mr-2">
-            <button id="tab-recent-calls" class="inline-block py-2 px-4 text-gray-500 hover:text-gray-600 border-b-2 border-transparent hover:border-gray-300 rounded-t-lg">
-              Llamadas recientes
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <!-- Contenedor de la lista de llamadas -->
-      <div id="callsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Las tarjetas de llamadas se generarán dinámicamente aquí -->
-        <div class="call-card bg-gray-100 rounded-lg p-4 border border-gray-200 flex flex-col">
-          <div class="text-center py-8">
-            <p class="text-gray-500">Cargando llamadas...</p>
+    <!-- Sección de transcripciones y logs -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+      <!-- Transcripciones en tiempo real -->
+      <div class="bg-white rounded-xl shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800">Transcripciones en Vivo</h2>
+            <label class="inline-flex items-center">
+              <input type="checkbox" id="autoRefreshTranscripts" class="form-checkbox text-blue-600 rounded">
+              <span class="ml-2 text-sm text-slate-600">Auto-refrescar</span>
+            </label>
+          </div>
+        </div>
+        
+        <div class="p-6">
+          <select 
+            id="callSelector"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all mb-4"
+          >
+            <option value="">Seleccione una llamada...</option>
+          </select>
+          
+          <div 
+            id="transcriptContainer"
+            class="h-64 overflow-y-auto bg-slate-50 rounded-lg p-4 space-y-2"
+          >
+            <div class="text-center text-slate-400 py-8">
+              <svg class="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+              </svg>
+              <p class="text-sm">Seleccione una llamada para ver transcripciones</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Mensaje cuando no hay llamadas -->
-      <div id="noCallsMessage" class="hidden text-center py-8">
-        <p class="text-gray-500">No hay llamadas activas en este momento.</p>
-      </div>
-    </div>
-    
-    <!-- Sección de transcripciones en tiempo real -->
-    <div class="bg-white rounded-lg shadow-md p-6 mt-6">
-      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Transcripciones en tiempo real</h2>
-      <div class="mb-4">
-        <label for="callSelector" class="block text-sm font-medium text-gray-700 mb-1">Seleccionar llamada:</label>
-        <select id="callSelector" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-          <option value="">Seleccione una llamada...</option>
-        </select>
-      </div>
-      <div id="transcriptContainer" class="chat-container p-4 border border-gray-200 rounded-lg">
-        <div class="text-center text-gray-500 py-10">
-          Seleccione una llamada para ver las transcripciones
+      <!-- Logs del sistema -->
+      <div class="bg-white rounded-xl shadow-sm">
+        <div class="border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+          <h2 class="text-lg font-semibold text-slate-800">Logs del Sistema</h2>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-500">Actualización automática</span>
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Sección de logs -->
-    <div class="bg-white rounded-lg shadow-md p-6 mt-6">
-      <h2 class="text-2xl font-semibold text-gray-800 mb-4">Logs del sistema</h2>
-      <div id="systemLogs" class="bg-black text-green-400 p-4 rounded h-48 overflow-y-auto font-mono text-sm whitespace-pre-wrap">
-        [INFO] Inicializando dashboard...
+        
+        <div 
+          id="systemLogs"
+          class="log-container bg-slate-900 text-green-400 p-4 rounded-b-xl h-80 overflow-y-auto font-mono text-xs whitespace-pre-wrap"
+        >
+          [Sistema] Inicializando dashboard...
+        </div>
       </div>
     </div>
   </main>
 
   <!-- Toast para notificaciones -->
-  <div id="toast" class="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded shadow hidden">
-    Nueva llamada detectada
+  <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-lg hidden transition-all transform translate-y-full">
+    <div class="flex items-center space-x-3">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span id="toastMessage">Notificación</span>
+    </div>
   </div>
 
-  <!-- Cargar scripts del dashboard en el orden correcto -->
+  <!-- Cargar scripts -->
   <script src="/js/dashboard/webSocketClient.js"></script>
   <script src="/js/dashboard/uiController.js"></script>
   <script src="/js/dashboard/callMonitor.js"></script>
   <script src="/js/dashboard/dashboardMain.js"></script>
   
-  <!-- Script para manejar el cierre de sesión -->
+  <!-- Script de inicialización -->
   <script>
-    // Detectar usuario actual desde cookies
     document.addEventListener('DOMContentLoaded', function() {
-      // Obtener correo electrónico del usuario de la cookie
+      // Obtener información del usuario
       function getCookie(name) {
         const value = `; ${document.cookie}`;
         const parts = value.split(`; ${name}=`);
@@ -222,15 +338,12 @@
         return null;
       }
       
-      // Mostrar email del usuario
       const userEmail = getCookie('userEmail');
       if (userEmail) {
-        document.getElementById('userEmail').textContent = userEmail;
+        document.getElementById('userEmail').textContent = decodeURIComponent(userEmail);
       }
       
-      // Añadir manejador para el botón de cierre de sesión
       document.getElementById('logoutBtn').addEventListener('click', function() {
-        // Redirigir al endpoint de logout
         window.location.href = '/api/auth/logout';
       });
     });
