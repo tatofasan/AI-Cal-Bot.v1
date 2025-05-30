@@ -1,12 +1,11 @@
-// src/services/speechService.js
+// services/speechService.js
 import { 
   getActiveConversation, 
   interruptConversation, 
   setConversationMode,
   sendAgentAudio 
 } from "./elevenLabsService.js";
-import { broadcastToSession } from "../utils/sessionManager.js";
-import { getSession, addTranscription } from "./sessionService.js";
+import unifiedSessionService from "./unifiedSessionService.js";
 import { bufferToFloat32Array } from "../utils/audioProcessor.js";
 
 /**
@@ -16,7 +15,7 @@ import { bufferToFloat32Array } from "../utils/audioProcessor.js";
  */
 export async function processAgentAudio(sessionId, data) {
   // Obtener la sesión actual
-  const session = getSession(sessionId);
+  const session = unifiedSessionService.getSession(sessionId);
   if (!session) {
     console.error("[SpeechService] No se encontró la sesión para el audio del agente", { sessionId });
     return;
@@ -31,7 +30,7 @@ export async function processAgentAudio(sessionId, data) {
 
   try {
     // Marcar sesión como con agente activo
-    session.isAgentActive = true;
+    unifiedSessionService.activateAgentMode(sessionId);
 
     // Interrumpir al bot si está hablando
     await interruptConversation(sessionId);
@@ -67,8 +66,8 @@ export async function processAgentAudio(sessionId, data) {
     const success = await sendAgentAudio(sessionId, audioBuffer);
 
     if (success) {
-      // Notificar a los clientes
-      broadcastToSession(sessionId, JSON.stringify({
+      // Notificar a los clientes de ESTA sesión
+      unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
         type: "agent_audio_sent",
         sessionId: sessionId,
         timestamp: Date.now()
@@ -89,7 +88,7 @@ export async function processAgentAudio(sessionId, data) {
  */
 export async function processAgentTranscript(sessionId, message) {
   // Obtener la sesión actual
-  const session = getSession(sessionId);
+  const session = unifiedSessionService.getSession(sessionId);
   if (!session) {
     console.error("[SpeechService] No se encontró la sesión para el mensaje", { sessionId });
     return;
@@ -98,10 +97,10 @@ export async function processAgentTranscript(sessionId, message) {
   try {
     // Registrar la transcripción
     console.log(`[SpeechService] Mensaje del agente: ${message}`, { sessionId });
-    addTranscription(sessionId, message, 'agent');
+    unifiedSessionService.addTranscription(sessionId, message, 'agent');
 
-    // Enviar a los clientes para mostrar en la interfaz
-    broadcastToSession(sessionId, JSON.stringify({
+    // Enviar a los clientes de ESTA sesión para mostrar en la interfaz
+    unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
       type: "agent_message",
       text: message,
       timestamp: Date.now()
@@ -124,7 +123,7 @@ export async function processAgentTranscript(sessionId, message) {
  * @param {string} sessionId - ID de la sesión
  */
 export async function processAgentInterrupt(sessionId) {
-  const session = getSession(sessionId);
+  const session = unifiedSessionService.getSession(sessionId);
   if (!session) {
     console.error("[SpeechService] No se encontró la sesión para la interrupción", { sessionId });
     return;
@@ -132,7 +131,7 @@ export async function processAgentInterrupt(sessionId) {
 
   try {
     // Marcar que el agente está activo
-    session.isAgentActive = true;
+    unifiedSessionService.activateAgentMode(sessionId);
 
     // Interrumpir la conversación actual
     const interrupted = await interruptConversation(sessionId);
@@ -140,8 +139,8 @@ export async function processAgentInterrupt(sessionId) {
     if (interrupted) {
       console.log("[SpeechService] Bot interrumpido por el agente", { sessionId });
 
-      // Notificar a los clientes
-      broadcastToSession(sessionId, JSON.stringify({
+      // Notificar a los clientes de ESTA sesión
+      unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
         type: "interruption",
         message: "Bot interrumpido por el agente",
         timestamp: Date.now()
@@ -163,7 +162,7 @@ export async function processAgentInterrupt(sessionId) {
  */
 export async function activateAgentMode(sessionId) {
   try {
-    const session = getSession(sessionId);
+    const session = unifiedSessionService.getSession(sessionId);
     if (!session) {
       throw new Error('Sesión no encontrada');
     }
@@ -172,13 +171,14 @@ export async function activateAgentMode(sessionId) {
     const success = await setConversationMode(sessionId, 'agent');
 
     if (success) {
-      session.isAgentActive = true;
+      // Activar en el servicio unificado
+      unifiedSessionService.activateAgentMode(sessionId);
 
       // Interrumpir cualquier audio en curso
       await interruptConversation(sessionId);
 
-      // Notificar
-      broadcastToSession(sessionId, JSON.stringify({
+      // Notificar a los clientes de ESTA sesión
+      unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
         type: "agent_mode_activated",
         timestamp: Date.now()
       }));
@@ -201,7 +201,7 @@ export async function activateAgentMode(sessionId) {
  */
 export async function deactivateAgentMode(sessionId) {
   try {
-    const session = getSession(sessionId);
+    const session = unifiedSessionService.getSession(sessionId);
     if (!session) {
       throw new Error('Sesión no encontrada');
     }
@@ -210,10 +210,11 @@ export async function deactivateAgentMode(sessionId) {
     const success = await setConversationMode(sessionId, 'bot');
 
     if (success) {
-      session.isAgentActive = false;
+      // Desactivar en el servicio unificado
+      unifiedSessionService.deactivateAgentMode(sessionId);
 
-      // Notificar
-      broadcastToSession(sessionId, JSON.stringify({
+      // Notificar a los clientes de ESTA sesión
+      unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
         type: "agent_mode_deactivated", 
         timestamp: Date.now()
       }));
@@ -252,8 +253,8 @@ export async function processAudioMetrics(sessionId, audioData, speaker) {
 
     avgAmplitude /= samples.length;
 
-    // Enviar métricas
-    broadcastToSession(sessionId, JSON.stringify({
+    // Enviar métricas SOLO a esta sesión
+    unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
       type: "audio_metrics",
       speaker: speaker,
       metrics: {

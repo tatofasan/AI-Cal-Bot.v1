@@ -1,5 +1,5 @@
-// src/routes/sessionRoutes.js
-import { createSession, getSessionStats, getSession, removeSession, getTranscriptions, addTranscription } from '../services/sessionService.js';
+// routes/sessionRoutes.js
+import unifiedSessionService from '../services/unifiedSessionService.js';
 import { twilioClient } from "../services/twilioService.js";
 import { updateCall } from '../services/callStorageService.js';
 
@@ -10,10 +10,12 @@ export default async function sessionRoutes(fastify, options) {
       // Obtener la IP del cliente para el registro
       const clientIp = request.headers['x-forwarded-for'] || request.ip || 'desconocida';
 
-      const sessionId = createSession();
+      // Crear sesión usando el servicio unificado
+      const session = unifiedSessionService.createSession();
+      const sessionId = session.id;
 
-      // Registrar que esto es solo una sesión de frontend, no una llamada real
-      updateCall(sessionId, { 
+      // Actualizar con información del cliente
+      unifiedSessionService.updateCallInfo(sessionId, { 
         clientIp,
         isRealCall: false,
         isSessionOnly: true
@@ -33,10 +35,10 @@ export default async function sessionRoutes(fastify, options) {
     }
   });
 
-  // Endpoint opcional para obtener estadísticas de las sesiones (para administradores/debugging)
+  // Endpoint opcional para obtener estadísticas de las sesiones
   fastify.get('/session-stats', async (request, reply) => {
     try {
-      const stats = getSessionStats();
+      const stats = unifiedSessionService.getStats();
 
       return reply.send({
         success: true,
@@ -63,7 +65,7 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      const session = getSession(sessionId);
+      const session = unifiedSessionService.getSession(sessionId);
 
       if (!session) {
         return reply.code(404).send({
@@ -72,20 +74,20 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      // Crear un objeto con información segura para enviar (sin referencias circulares)
+      // Crear un objeto con información segura para enviar
       const safeSession = {
         id: session.id,
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
-        callSid: session.callSid,
-        isAgentActive: session.isAgentActive,
-        transcriptCount: session.transcriptions ? session.transcriptions.length : 0,
-        logClients: {
-          size: session.logClients ? session.logClients.size : 0
-        },
-        hasTwilioConnection: !!session.twilioWs,
-        hasElevenLabsConnection: !!session.elevenLabsWs,
-        hasAgentConnection: !!session.agentWs
+        callSid: session.call.sid,
+        callStatus: session.call.status,
+        isAgentActive: session.agent.isActive,
+        transcriptCount: session.transcriptions.length,
+        connections: {
+          logClients: session.connections.logClients.size,
+          hasTwilioConnection: !!session.connections.twilioWs,
+          hasElevenLabsConnection: !!session.connections.elevenLabsConversation
+        }
       };
 
       return reply.send({
@@ -101,7 +103,7 @@ export default async function sessionRoutes(fastify, options) {
     }
   });
 
-  // Nuevo endpoint para obtener las transcripciones de una sesión
+  // Endpoint para obtener las transcripciones de una sesión
   fastify.get('/session-transcripts', async (request, reply) => {
     try {
       const { sessionId } = request.query;
@@ -113,7 +115,7 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      const transcriptions = getTranscriptions(sessionId);
+      const transcriptions = unifiedSessionService.getTranscriptions(sessionId);
 
       if (transcriptions === null) {
         return reply.code(404).send({
@@ -148,7 +150,7 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      const added = addTranscription(sessionId, text, speakerType);
+      const added = unifiedSessionService.addTranscription(sessionId, text, speakerType);
 
       if (!added) {
         return reply.code(404).send({
@@ -156,9 +158,6 @@ export default async function sessionRoutes(fastify, options) {
           error: 'Session not found'
         });
       }
-
-      // Actualizar el estado de la llamada para indicar que es una llamada real
-      updateCall(sessionId, { isRealCall: true });
 
       return reply.send({
         success: true,
@@ -186,7 +185,7 @@ export default async function sessionRoutes(fastify, options) {
       }
 
       // Obtener la sesión para verificar si está en una llamada activa
-      const session = getSession(sessionId);
+      const session = unifiedSessionService.getSession(sessionId);
 
       if (!session) {
         return reply.code(404).send({
@@ -195,19 +194,18 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      // Si la sesión tiene una llamada activa, finalizarla primero
-      if (session.callSid) {
+      // Si la sesión tiene una llamada activa, finalizarla primero en Twilio
+      if (session.call.sid && session.call.status === 'active') {
         try {
-          await twilioClient.calls(session.callSid).update({ status: "completed" });
-          console.log(`[SessionRoutes] Llamada ${session.callSid} finalizada como parte de terminación de sesión ${sessionId}`);
+          await twilioClient.calls(session.call.sid).update({ status: "completed" });
+          console.log(`[SessionRoutes] Llamada ${session.call.sid} finalizada en Twilio`);
         } catch (twilioError) {
-          // No bloqueamos la terminación de la sesión si falla la finalización de la llamada
-          console.error(`[SessionRoutes] Error al finalizar llamada durante terminación de sesión:`, twilioError);
+          console.error(`[SessionRoutes] Error al finalizar llamada en Twilio:`, twilioError);
         }
       }
 
-      // Eliminar la sesión
-      const removed = removeSession(sessionId);
+      // Eliminar la sesión usando el servicio unificado
+      const removed = unifiedSessionService.removeSession(sessionId);
 
       if (removed) {
         return reply.send({
@@ -217,7 +215,7 @@ export default async function sessionRoutes(fastify, options) {
       } else {
         return reply.code(404).send({
           success: false,
-          error: 'Failed to terminate session - session not found or already terminated'
+          error: 'Failed to terminate session'
         });
       }
     } catch (error) {

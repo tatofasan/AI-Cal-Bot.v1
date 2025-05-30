@@ -1,55 +1,62 @@
-// src/routes/websockets.js
-import { setupMediaStream } from "../services/elevenLabsService.js";
-import { 
-  registerLogClient, 
-  removeLogClient, 
-  validateSessionId
-} from '../utils/sessionManager.js';
-import { getSession, addTranscription, getSessionStats } from "../services/sessionService.js";
+// routes/websockets.js
+import unifiedSessionService from "../services/unifiedSessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
-  // WebSocket para logs
+  // WebSocket para logs - Simplificado
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
     // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
 
-    // Validar que se proporcionó un sessionId y que sea válido
-    if (!sessionId || !validateSessionId(sessionId)) {
+    // Validar que se proporcionó un sessionId
+    if (!sessionId || !sessionId.startsWith('session_')) {
       console.error("[WebSocket] Error: conexión websocket sin sessionId válido");
-      ws.send("[ERROR] Se requiere un sessionId válido para establecer la conexión");
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Se requiere un sessionId válido para establecer la conexión'
+      }));
       ws.close(1008, "SessionId inválido o no proporcionado");
       return;
     }
 
-    // Registrar nuevo cliente en el gestor de sesiones
-    registerLogClient(sessionId, ws);
+    // Registrar cliente en el servicio unificado
+    unifiedSessionService.addLogClient(sessionId, ws);
 
-    // Asociar el sessionId directamente con el WebSocket para usarlo en respuestas
-    ws.sessionId = sessionId;
+    // Enviar confirmación
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      sessionId: sessionId,
+      message: `Conexión establecida para sesión: ${sessionId}`
+    }));
 
-    ws.send(`[INFO] Conexión establecida para session: ${sessionId}`);
-
+    // Si hay URL pública, enviarla
     if (fastify.publicUrl) {
-      ws.send(`[INFO] URL pública: ${fastify.publicUrl}`);
+      ws.send(JSON.stringify({
+        type: 'info',
+        message: `URL pública: ${fastify.publicUrl}`
+      }));
     }
 
+    // Manejar cierre
     ws.on('close', () => {
-      // Eliminar del gestor de sesiones
-      removeLogClient(ws);
+      unifiedSessionService.removeLogClient(ws);
+      console.log("[WebSocket] Cliente de logs desconectado", { sessionId });
     });
 
+    // Manejar mensajes
     ws.on("message", (message) => {
-      if (message.toString() === "heartbeat") {
-        ws.send("[HEARTBEAT] Conexión activa");
+      const messageStr = message.toString();
+
+      if (messageStr === "heartbeat") {
+        ws.send(JSON.stringify({
+          type: 'heartbeat',
+          timestamp: Date.now()
+        }));
+        return;
       }
 
-      // Intentar capturar mensajes con transcripciones
+      // Procesar posibles transcripciones en mensajes del WebSocket
       try {
-        const messageText = message.toString();
-
-        // Procesar posibles transcripciones en mensajes del WebSocket
-        processTranscriptionsFromMessage(messageText, sessionId);
-
+        processTranscriptionsFromMessage(messageStr, sessionId);
       } catch (error) {
         // Ignorar errores al procesar transcripciones
       }
@@ -58,13 +65,9 @@ export default function websocketsRoutes(fastify, options) {
     ws.on("error", (error) => {
       console.error("[WebSocket Error]", error, { sessionId });
     });
-
-    ws.on("close", () => {
-      console.log("[INFO] Cliente de logs desconectado", { sessionId });
-    });
   });
 
-  // WebSocket para el media stream outbound - Simplificado
+  // WebSocket para el media stream - Simplificado
   fastify.get("/outbound-media-stream", { websocket: true }, async (ws, req) => {
     // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
@@ -75,54 +78,32 @@ export default function websocketsRoutes(fastify, options) {
       url: req.url
     });
 
-    // Si no hay sessionId, intentar obtener el último activo
-    if (!sessionId) {
-      try {
-        const stats = getSessionStats();
-        const sessionInfo = stats.sessionInfo || [];
-
-        if (sessionInfo.length > 0) {
-          const sortedSessions = [...sessionInfo].sort((a, b) => b.createdAt - a.createdAt);
-          const latestSessionId = sortedSessions[0].id;
-
-          console.log(`[WebSocket] Usando la última sesión activa: ${latestSessionId}`);
-          ws.sessionId = latestSessionId;
-
-          // Configurar el media stream con el SDK
-          await setupMediaStream(ws, latestSessionId);
-          return;
-        }
-      } catch (error) {
-        console.error("[WebSocket] Error obteniendo sesiones:", error);
-      }
-
-      console.error("[WebSocket] No se proporcionó sessionId y no hay sesiones activas");
-      ws.close(1008, "SessionId no proporcionado");
+    // Validar sessionId
+    if (!sessionId || !sessionId.startsWith('session_')) {
+      console.error("[WebSocket] No se proporcionó sessionId válido para media stream");
+      ws.close(1008, "SessionId no proporcionado o inválido");
       return;
     }
 
     console.info("[WebSocket] Conexión de media stream iniciada con sessionId:", sessionId);
 
-    // Asociar sessionId con el WebSocket
-    ws.sessionId = sessionId;
-
-    // Configurar el media stream con el SDK
+    // Delegar todo el manejo al servicio unificado
     try {
-      await setupMediaStream(ws, sessionId);
+      await unifiedSessionService.handleMediaStream(ws, sessionId);
     } catch (error) {
       console.error("[WebSocket] Error configurando media stream:", error);
       ws.close(1011, "Error interno configurando stream");
     }
   });
 
-  // Función auxiliar para procesar posibles transcripciones en mensajes
+  // Función auxiliar para procesar posibles transcripciones en mensajes de texto
   function processTranscriptionsFromMessage(messageText, sessionId) {
     // Detectar transcripciones del usuario
     if (messageText.includes("[Twilio] Transcripción del usuario:")) {
       const text = messageText.replace(/.*Transcripción del usuario:\s*/, "").trim();
       if (text) {
-        addTranscription(sessionId, text, 'client');
-        console.log(`[WebSocket] Transcripción de usuario capturada: "${text.substring(0, 30)}..."`, { sessionId });
+        unifiedSessionService.addTranscription(sessionId, text, 'client');
+        console.log(`[WebSocket] Transcripción de usuario capturada para sesión ${sessionId}`);
       }
     } 
     // Detectar respuestas del bot
@@ -130,8 +111,8 @@ export default function websocketsRoutes(fastify, options) {
       const text = messageText.replace(/.*Respuesta del agente:\s*/, "").trim();
       if (text) {
         const speakerType = messageText.includes("[AGENT]") ? 'agent' : 'bot';
-        addTranscription(sessionId, text, speakerType);
-        console.log(`[WebSocket] Respuesta del ${speakerType} capturada: "${text.substring(0, 30)}..."`, { sessionId });
+        unifiedSessionService.addTranscription(sessionId, text, speakerType);
+        console.log(`[WebSocket] Respuesta del ${speakerType} capturada para sesión ${sessionId}`);
       }
     }
 
@@ -140,13 +121,13 @@ export default function websocketsRoutes(fastify, options) {
       const jsonData = JSON.parse(messageText);
 
       if (jsonData.type === 'user_transcript' && jsonData.text) {
-        addTranscription(sessionId, jsonData.text, 'client');
+        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'client');
       }
       else if (jsonData.type === 'agent_response' && jsonData.text) {
-        addTranscription(sessionId, jsonData.text, 'bot');
+        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'bot');
       }
       else if (jsonData.type === 'agent_message' && jsonData.text) {
-        addTranscription(sessionId, jsonData.text, 'agent');
+        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'agent');
       }
     } catch (e) {
       // No es JSON, ignorar

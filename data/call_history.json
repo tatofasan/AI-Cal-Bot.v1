@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "session_aa78bf0c-572d-451d-80ed-91df2b862951",
+    "callSid": "CA42eb8de5384623b3cc0aa3d4d404dbc4",
+    "phoneNumber": null,
+    "startTime": 1748607456455,
+    "updatedAt": 1748607456758,
+    "status": "ended",
+    "userName": "",
+    "voiceName": "Random",
+    "clientIp": "181.169.37.2, 10.81.5.20",
+    "transcriptions": [],
+    "agentTakeoverCount": 0,
+    "isRealCall": true,
+    "sessionId": "session_aa78bf0c-572d-451d-80ed-91df2b862951",
+    "voiceId": "random",
+    "callStatus": "busy",
+    "statusMessage": "Número ocupado",
+    "callDuration": 0,
+    "endReason": "busy",
+    "duration": 303,
+    "endTime": 1748607456758
+  }
+]

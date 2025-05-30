@@ -1,4 +1,4 @@
-// src/services/twilio/callManager.js
+// services/twilio/callManager.js
 import { 
   twilioClient, 
   TWILIO_PHONE_NUMBER,
@@ -6,7 +6,7 @@ import {
   DEFAULT_TO_PHONE_NUMBER 
 } from "./twilioConfig.js";
 import { APP_PUBLIC_URL } from '../config/appConfig.js';
-import { registerCall } from '../callStorageService.js';
+import unifiedSessionService from '../unifiedSessionService.js';
 
 /**
  * Inicia una llamada saliente a través de Twilio
@@ -71,18 +71,20 @@ export const initiateCall = async ({ user_name, to_number, voice_id, voice_name,
 
     console.log("[Twilio] Llamada iniciada con éxito:", call.sid, sessionContext);
 
-    // Registrar la llamada en el sistema de almacenamiento
+    // Registrar/actualizar la llamada usando el servicio unificado
     if (sessionId) {
-      console.log("[Twilio] Registrando llamada en callStorageService:", sessionId, call.sid);
-      registerCall({
-        sessionId,
-        callSid: call.sid,
+      console.log("[Twilio] Registrando llamada en servicio unificado:", sessionId, call.sid);
+
+      // Actualizar información de la llamada en el servicio unificado
+      unifiedSessionService.updateCallInfo(sessionId, {
+        sid: call.sid,
+        status: 'starting',
         phoneNumber: destinationNumber,
         userName: user_name,
         voiceId: voice_id,
         voiceName: voice_name,
-        status: 'active',
-        startTime: Date.now()
+        startTime: Date.now(),
+        isRealCall: true
       });
     }
 
@@ -118,6 +120,14 @@ export const endCall = async (callSid, sessionId) => {
   try {
     const call = await twilioClient.calls(callSid).update({ status: "completed" });
     console.log(`[Twilio] Llamada ${callSid} finalizada exitosamente.`, sessionContext);
+
+    // Si tenemos sessionId, actualizar en el servicio unificado
+    if (sessionId) {
+      unifiedSessionService.endCall(sessionId, { 
+        callSid,
+        endReason: 'manual_termination'
+      });
+    }
 
     return {
       success: true,

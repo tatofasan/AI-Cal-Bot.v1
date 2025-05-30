@@ -6,7 +6,7 @@ import {
   processAgentTranscript
 } from '../services/speechService.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
-import { getSession } from '../services/sessionService.js';
+import unifiedSessionService from '../services/unifiedSessionService.js';
 
 export default async function agentRoutes(fastify, options) {
   // Tomar control como agente
@@ -23,8 +23,8 @@ export default async function agentRoutes(fastify, options) {
         });
       }
 
-      // Verificar que la sesión existe
-      const session = getSession(sessionId);
+      // Verificar que la sesión existe usando el servicio unificado
+      const session = unifiedSessionService.getSession(sessionId);
       if (!session) {
         return reply.code(404).send({
           success: false,
@@ -211,7 +211,7 @@ export default async function agentRoutes(fastify, options) {
     try {
       const { sessionId } = request.params;
 
-      const session = getSession(sessionId);
+      const session = unifiedSessionService.getSession(sessionId);
       if (!session) {
         return reply.code(404).send({
           success: false,
@@ -222,8 +222,8 @@ export default async function agentRoutes(fastify, options) {
       return reply.send({
         success: true,
         sessionId: sessionId,
-        isAgentActive: session.isAgentActive || false,
-        hasActiveCall: !!session.callSid
+        isAgentActive: session.agent.isActive,
+        hasActiveCall: session.call.status === 'active'
       });
     } catch (error) {
       console.error('[AgentAPI] Error obteniendo estado:', error);

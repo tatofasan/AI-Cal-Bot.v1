@@ -1,6 +1,6 @@
-// src/routes/twilioCallbacks.js
-import { updateCall, findCallByCallSid } from '../services/callStorageService.js';
-import { broadcastToSession } from '../utils/sessionManager.js';
+// routes/twilioCallbacks.js
+import { findCallByCallSid } from '../services/callStorageService.js';
+import unifiedSessionService from '../services/unifiedSessionService.js';
 
 /**
  * Rutas para manejar los callbacks de estado de Twilio
@@ -89,10 +89,10 @@ export default async function twilioCallbackRoutes(fastify, options) {
           statusMessage = `Estado: ${CallStatus}`;
       }
 
-      // Actualizar el estado de la llamada en nuestro sistema
-      updateCall(sessionId, {
+      // Actualizar el estado de la llamada en el servicio unificado
+      unifiedSessionService.updateCallInfo(sessionId, {
         callStatus: CallStatus,
-        uiStatus,
+        status: uiStatus,
         statusMessage,
         callDuration: CallDuration ? parseInt(CallDuration) : undefined,
         errorCode: ErrorCode,
@@ -100,8 +100,17 @@ export default async function twilioCallbackRoutes(fastify, options) {
         updatedAt: Date.now()
       });
 
-      // Enviar notificación a los clientes conectados
-      broadcastToSession(sessionId, JSON.stringify({
+      // Si la llamada finalizó, marcarla como tal
+      if (['completed', 'busy', 'no-answer', 'failed', 'canceled'].includes(CallStatus)) {
+        unifiedSessionService.endCall(sessionId, {
+          callSid: CallSid,
+          endReason: CallStatus,
+          duration: CallDuration ? parseInt(CallDuration) : undefined
+        });
+      }
+
+      // Enviar notificación SOLO a los clientes conectados a esta sesión
+      unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
         type: 'call_status_update',
         callSid: CallSid,
         status: uiStatus,

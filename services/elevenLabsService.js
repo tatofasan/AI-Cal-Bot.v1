@@ -1,12 +1,6 @@
-// src/services/elevenLabsService.js
+// services/elevenLabsService.js
 import { ElevenLabsClient } from "elevenlabs";
-import { 
-  registerElevenLabsConnection, 
-  removeElevenLabsConnection,
-  broadcastToSession 
-} from "../utils/sessionManager.js";
-import { addTranscription } from "./sessionService.js";
-import { updateCall } from "./callStorageService.js";
+import unifiedSessionService from "./unifiedSessionService.js";
 
 // Configuración
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
@@ -16,9 +10,6 @@ const ELEVENLABS_AGENT_ID = process.env.ELEVENLABS_AGENT_ID;
 const client = new ElevenLabsClient({
   apiKey: ELEVENLABS_API_KEY
 });
-
-// Mapa de conversaciones activas por sessionId
-const activeConversations = new Map();
 
 /**
  * Configura el stream de medios para la comunicación entre Twilio y ElevenLabs usando el SDK
@@ -30,12 +21,17 @@ export async function setupMediaStream(twilioWs, sessionId, customParameters = {
   try {
     console.log("[ElevenLabs SDK] Iniciando conversación para sesión:", sessionId);
 
-    // Verificar si ya existe una conversación activa
-    if (activeConversations.has(sessionId)) {
+    // Obtener la sesión del servicio unificado
+    const session = unifiedSessionService.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Sesión ${sessionId} no encontrada`);
+    }
+
+    // Verificar si ya hay una conversación activa para esta sesión
+    const existingConversation = unifiedSessionService.getElevenLabsConversation(sessionId);
+    if (existingConversation) {
       console.warn(`[ElevenLabs SDK] Ya existe una conversación activa para sesión ${sessionId}`);
-      const existingConv = activeConversations.get(sessionId);
-      await existingConv.endSession();
-      activeConversations.delete(sessionId);
+      await existingConversation.endSession();
     }
 
     // Crear nueva conversación usando el SDK
@@ -46,11 +42,16 @@ export async function setupMediaStream(twilioWs, sessionId, customParameters = {
       onConnect: () => {
         console.log("[ElevenLabs SDK] Conversación conectada", { sessionId });
 
-        // Registrar la conexión
-        registerElevenLabsConnection(sessionId, conversation, twilioWs.callSid);
+        // Registrar la conversación en el servicio unificado
+        unifiedSessionService.setElevenLabsConversation(sessionId, conversation);
 
-        // Notificar a los clientes
-        broadcastToSession(sessionId, JSON.stringify({
+        // Actualizar estado de la llamada
+        unifiedSessionService.updateCallInfo(sessionId, {
+          elevenLabsConnected: true
+        });
+
+        // Notificar a los clientes de ESTA sesión
+        unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
           type: 'conversation_connected',
           sessionId: sessionId
         }));
@@ -74,7 +75,7 @@ export async function setupMediaStream(twilioWs, sessionId, customParameters = {
       // Callback para errores
       onError: (error) => {
         console.error("[ElevenLabs SDK] Error en conversación:", error, { sessionId });
-        broadcastToSession(sessionId, JSON.stringify({
+        unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
           type: 'conversation_error',
           error: error.message
         }));
@@ -83,8 +84,14 @@ export async function setupMediaStream(twilioWs, sessionId, customParameters = {
       // Callback cuando se desconecta
       onDisconnect: () => {
         console.log("[ElevenLabs SDK] Conversación desconectada", { sessionId });
-        removeElevenLabsConnection(conversation);
-        activeConversations.delete(sessionId);
+
+        // Limpiar del servicio unificado
+        unifiedSessionService.setElevenLabsConversation(sessionId, null);
+
+        // Actualizar estado
+        unifiedSessionService.updateCallInfo(sessionId, {
+          elevenLabsConnected: false
+        });
       }
     });
 
@@ -100,9 +107,6 @@ export async function setupMediaStream(twilioWs, sessionId, customParameters = {
         await conversation.setVoice(customParameters.voice_id);
       }
     }
-
-    // Guardar la conversación activa
-    activeConversations.set(sessionId, conversation);
 
     // Manejar mensajes de Twilio
     setupTwilioHandlers(twilioWs, conversation, sessionId);
@@ -132,10 +136,13 @@ function setupTwilioHandlers(twilioWs, conversation, sessionId) {
           twilioWs.streamSid = streamSid;
           console.log(`[ElevenLabs SDK] Stream iniciado - StreamSid: ${streamSid}`, { sessionId });
 
+          // Actualizar en el servicio unificado
+          unifiedSessionService.setTwilioConnection(sessionId, twilioWs, streamSid);
+
           // Actualizar estado de la llamada
-          updateCall(sessionId, {
+          unifiedSessionService.updateCallInfo(sessionId, {
             streamSid: streamSid,
-            elevenLabsConnected: true
+            status: 'active'
           });
           break;
 
@@ -146,6 +153,13 @@ function setupTwilioHandlers(twilioWs, conversation, sessionId) {
               // El SDK espera audio en formato raw, no base64
               const audioBuffer = Buffer.from(msg.media.payload, 'base64');
               await conversation.sendAudio(audioBuffer);
+
+              // Actualizar métricas
+              const session = unifiedSessionService.getSession(sessionId);
+              if (session) {
+                session.metrics.audioChunksReceived++;
+                session.metrics.lastAudioReceived = Date.now();
+              }
             } catch (audioError) {
               console.error("[ElevenLabs SDK] Error enviando audio:", audioError, { sessionId });
             }
@@ -165,6 +179,8 @@ function setupTwilioHandlers(twilioWs, conversation, sessionId) {
   // Manejar cierre de Twilio
   twilioWs.on('close', async () => {
     console.log("[ElevenLabs SDK] Conexión Twilio cerrada", { sessionId });
+    unifiedSessionService.removeTwilioConnection(sessionId);
+
     if (conversation) {
       await conversation.endSession();
     }
@@ -188,9 +204,12 @@ function handleConversationMessage(message, sessionId, twilioWs) {
         // Respuesta del agente (texto)
         if (message.text) {
           console.log(`[ElevenLabs SDK] Respuesta del agente: ${message.text}`, { sessionId });
-          addTranscription(sessionId, message.text, 'bot');
 
-          broadcastToSession(sessionId, JSON.stringify({
+          // Añadir transcripción SOLO a esta sesión
+          unifiedSessionService.addTranscription(sessionId, message.text, 'bot');
+
+          // Broadcast SOLO a esta sesión
+          unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
             type: 'agent_response',
             text: message.text,
             sessionId: sessionId
@@ -202,9 +221,12 @@ function handleConversationMessage(message, sessionId, twilioWs) {
         // Transcripción del usuario
         if (message.text) {
           console.log(`[ElevenLabs SDK] Transcripción del usuario: ${message.text}`, { sessionId });
-          addTranscription(sessionId, message.text, 'client');
 
-          broadcastToSession(sessionId, JSON.stringify({
+          // Añadir transcripción SOLO a esta sesión
+          unifiedSessionService.addTranscription(sessionId, message.text, 'client');
+
+          // Broadcast SOLO a esta sesión
+          unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
             type: 'user_transcript',
             text: message.text,
             sessionId: sessionId
@@ -255,8 +277,15 @@ function handleAudioData(audioData, sessionId, twilioWs) {
 
     twilioWs.send(JSON.stringify(audioMessage));
 
-    // Broadcast para monitoreo
-    broadcastToSession(sessionId, JSON.stringify({
+    // Actualizar métricas
+    const session = unifiedSessionService.getSession(sessionId);
+    if (session) {
+      session.metrics.audioChunksSent++;
+      session.metrics.lastAudioSent = Date.now();
+    }
+
+    // Broadcast para monitoreo SOLO a esta sesión
+    unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
       type: "audio",
       id: Date.now() + Math.random().toString(36).substr(2, 9),
       payload: base64Audio
@@ -275,12 +304,12 @@ function handleTranscript(transcript, sessionId) {
 
     console.log(`[ElevenLabs SDK] Transcripción [${role}]: ${text} (confianza: ${confidence})`, { sessionId });
 
-    // Guardar transcripción
+    // Guardar transcripción en la sesión específica
     const speakerType = role === 'user' ? 'client' : 'bot';
-    addTranscription(sessionId, text, speakerType);
+    unifiedSessionService.addTranscription(sessionId, text, speakerType);
 
-    // Broadcast
-    broadcastToSession(sessionId, JSON.stringify({
+    // Broadcast SOLO a esta sesión
+    unifiedSessionService.broadcastToSession(sessionId, JSON.stringify({
       type: 'transcript',
       text: text,
       role: role,
@@ -296,14 +325,14 @@ function handleTranscript(transcript, sessionId) {
  * Obtiene una conversación activa por sessionId
  */
 export function getActiveConversation(sessionId) {
-  return activeConversations.get(sessionId);
+  return unifiedSessionService.getElevenLabsConversation(sessionId);
 }
 
 /**
  * Interrumpe la conversación actual
  */
 export async function interruptConversation(sessionId) {
-  const conversation = activeConversations.get(sessionId);
+  const conversation = getActiveConversation(sessionId);
   if (conversation) {
     try {
       await conversation.interrupt();
@@ -321,7 +350,7 @@ export async function interruptConversation(sessionId) {
  * Cambia el modo de la conversación (bot/agent)
  */
 export async function setConversationMode(sessionId, mode) {
-  const conversation = activeConversations.get(sessionId);
+  const conversation = getActiveConversation(sessionId);
   if (conversation) {
     try {
       await conversation.setMode(mode);
@@ -339,7 +368,7 @@ export async function setConversationMode(sessionId, mode) {
  * Envía audio del agente
  */
 export async function sendAgentAudio(sessionId, audioData) {
-  const conversation = activeConversations.get(sessionId);
+  const conversation = getActiveConversation(sessionId);
   if (conversation) {
     try {
       await conversation.sendAudio(audioData);
@@ -356,17 +385,21 @@ export async function sendAgentAudio(sessionId, audioData) {
  * Finaliza todas las conversaciones activas (para cleanup)
  */
 export async function closeAllConversations() {
-  console.log(`[ElevenLabs SDK] Cerrando ${activeConversations.size} conversaciones activas`);
+  console.log(`[ElevenLabs SDK] Cerrando todas las conversaciones activas`);
 
-  for (const [sessionId, conversation] of activeConversations) {
-    try {
-      await conversation.endSession();
-    } catch (error) {
-      console.error(`[ElevenLabs SDK] Error cerrando conversación ${sessionId}:`, error);
+  const stats = unifiedSessionService.getStats();
+
+  for (const sessionInfo of stats.sessionInfo) {
+    const conversation = getActiveConversation(sessionInfo.id);
+    if (conversation) {
+      try {
+        await conversation.endSession();
+        console.log(`[ElevenLabs SDK] Conversación cerrada para sesión ${sessionInfo.id}`);
+      } catch (error) {
+        console.error(`[ElevenLabs SDK] Error cerrando conversación ${sessionInfo.id}:`, error);
+      }
     }
   }
-
-  activeConversations.clear();
 }
 
 // Cleanup al salir

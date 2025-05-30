@@ -1,5 +1,5 @@
-// src/utils/logger.js
-import { broadcastToSession } from './sessionManager.js';
+// utils/logger.js
+import unifiedSessionService from '../services/unifiedSessionService.js';
 
 export const console = globalThis.console;
 const originalLog = console.log;
@@ -8,21 +8,16 @@ const originalInfo = console.info;
 const originalWarn = console.warn;
 const originalDebug = console.debug;
 
-// Set para mantener las conexiones WebSocket activas (mantenido por compatibilidad)
-export const logClients = new Set();
-
 // Función para enviar logs a los clientes conectados de una sesión específica
 const broadcastLog = (type, args, sessionId = null) => {
   const timestamp = new Date().toISOString();
   const message = `[${type}] ${args.join(' ')}`;
 
-  // Si no hay sessionId, no enviamos a los logClients genéricos
-  // Este es el cambio principal - Ya no transmitimos a todos los clientes por defecto
-
   // Solo enviar al sessionId específico si existe
   if (sessionId) {
-    broadcastToSession(sessionId, message);
+    unifiedSessionService.broadcastToSession(sessionId, message);
   }
+  // Ya no enviamos logs a todos los clientes genéricos para evitar mezcla de logs
 };
 
 // Override de todas las funciones de console

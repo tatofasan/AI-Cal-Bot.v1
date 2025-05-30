@@ -1,12 +1,12 @@
-// src/routes/dashboardRoutes.js
+// routes/dashboardRoutes.js
 import { handleDashboardRoute, handleJsFileRoute } from "./dashboard/routeHandler.js";
-import { getSessionStats } from "../services/sessionService.js";
-import { requireSupervisor } from "../middleware/auth-middleware.js"; // Ruta corregida
+import unifiedSessionService from "../services/unifiedSessionService.js";
+import { requireSupervisor } from "../middleware/auth-middleware.js";
 
 export default async function dashboardRoutes(fastify, options) {
   // Ruta que sirve el dashboard - ahora requiere ser supervisor
   fastify.get("/dashboard", {
-    preHandler: requireSupervisor // Agregar middleware que verifica el rol de supervisor
+    preHandler: requireSupervisor
   }, handleDashboardRoute);
 
   // Rutas para servir los archivos JS específicos del dashboard
@@ -32,10 +32,10 @@ export default async function dashboardRoutes(fastify, options) {
 
   // API para obtener estadísticas de sesiones en formato JSON - también requiere ser supervisor
   fastify.get("/api/sessions", {
-    preHandler: requireSupervisor // Agregar middleware que verifica el rol de supervisor
+    preHandler: requireSupervisor
   }, async (request, reply) => {
     try {
-      const stats = getSessionStats();
+      const stats = unifiedSessionService.getStats();
       return reply.send({
         success: true,
         timestamp: Date.now(),
