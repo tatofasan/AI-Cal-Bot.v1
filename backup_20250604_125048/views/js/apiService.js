@@ -1,12 +1,13 @@
-// views/js/apiService.js (MODIFICADO)
 // Módulo para manejar las llamadas a la API
 const ApiService = (() => {
-  // Iniciar una llamada - MODIFICADO para Phone API
+  // Iniciar una llamada
   async function initiateCall(callData) {
     // Verificar que voice_name esté presente
     if (!callData.voice_name && callData.voice_id) {
+      // Si falta voice_name pero tenemos voice_id, intentamos recuperarlo
       const voiceSelect = document.getElementById('voiceSelected');
       if (voiceSelect) {
+        // Buscar la opción que coincide con el voice_id
         const selectedOption = Array.from(voiceSelect.options).find(
           option => option.value === callData.voice_id
         );
@@ -20,8 +21,6 @@ const ApiService = (() => {
 
     console.log("Datos finales de la llamada:", callData);
 
-    // MANTENER el endpoint /outbound-call para compatibilidad
-    // El backend lo redirige a Phone API internamente
     const response = await fetch('/outbound-call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -35,12 +34,11 @@ const ApiService = (() => {
     return await response.json();
   }
 
-  // Finalizar una llamada - MODIFICADO para Phone API
+  // Finalizar una llamada
   async function endCall(callSid, sessionId) {
-    // MANTENER el endpoint /end-call para compatibilidad
     const data = { 
-      callSid,  // Se mantiene por compatibilidad pero no se usa
-      sessionId // Este es el importante para Phone API
+      callSid, 
+      sessionId
     };
 
     const response = await fetch('/end-call', {
@@ -56,41 +54,10 @@ const ApiService = (() => {
     return await response.json();
   }
 
-  // NUEVA función para obtener estado de llamada
-  async function getCallStatus(sessionId) {
-    const response = await fetch(`/api/phone/status/${sessionId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (!response.ok) {
-      throw new Error("Error al obtener estado de llamada");
-    }
-
-    return await response.json();
-  }
-
-  // NUEVA función para actualizar variables del agente
-  async function updateAgentVariables(sessionId, variables) {
-    const response = await fetch('/api/phone/variables', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, variables })
-    });
-
-    if (!response.ok) {
-      throw new Error("Error al actualizar variables");
-    }
-
-    return await response.json();
-  }
-
   // API pública
   return {
     initiateCall,
-    endCall,
-    getCallStatus,
-    updateAgentVariables
+    endCall
   };
 })();
 

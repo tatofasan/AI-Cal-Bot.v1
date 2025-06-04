@@ -36,47 +36,53 @@ class UnifiedSessionService {
   createSession(specificSessionId = null) {
     const sessionId = specificSessionId || `session_${uuidv4()}`;
 
+    // Si ya existe, devolver la existente (idempotente)
     if (this.sessions.has(sessionId)) {
       console.log(`[UnifiedSession] Sesión ${sessionId} ya existe`);
       return this.getSession(sessionId);
     }
 
+    // Crear estructura de sesión completa y aislada
     const session = {
+      // Identificación
       id: sessionId,
       createdAt: Date.now(),
       lastActivity: Date.now(),
 
-      // Estado de la llamada - MODIFICADO para Phone API
+      // Estado de la llamada
       call: {
-        phoneCallId: null,     // Nuevo: ID de Phone API en lugar de sid
-        status: 'idle',
+        sid: null,
+        status: 'idle', // idle, starting, active, ended
         phoneNumber: null,
         userName: null,
         voiceId: null,
         voiceName: null,
         startTime: null,
         endTime: null,
-        isRealCall: false,
-        clientIp: null,
-        isPhoneAPI: false      // Nuevo: marcar si usa Phone API
+        isRealCall: false, // Diferencia entre sesión de prueba y llamada real
+        clientIp: null
       },
 
-      // Conexiones - SIMPLIFICADO
+      // Conexiones - cada sesión tiene sus propias conexiones
       connections: {
-        // twilioWs y twilioStreamSid ELIMINADOS
-        // elevenLabsConversation ELIMINADO (manejado por Phone API)
-        logClients: new Set(),
+        twilioWs: null,
+        twilioStreamSid: null,
+        elevenLabsConversation: null,
+        logClients: new Set(), // Set de WebSockets de logs para ESTA sesión
         agentWs: null
       },
 
+      // Estado del agente
       agent: {
         isActive: false,
         takeoverCount: 0,
         lastTakeoverTime: null
       },
 
+      // Transcripciones - Array propio para cada sesión
       transcriptions: [],
 
+      // Métricas específicas de esta sesión
       metrics: {
         audioChunksReceived: 0,
         audioChunksSent: 0,
@@ -86,15 +92,17 @@ class UnifiedSessionService {
       }
     };
 
+    // Almacenar la sesión
     this.sessions.set(sessionId, session);
+
     console.log(`[UnifiedSession] Nueva sesión creada: ${sessionId}`);
 
+    // Registrar en callStorageService si no es sesión del dashboard
     if (!sessionId.startsWith('session_dashboard_')) {
       updateCall(sessionId, { 
         sessionId, 
         isSessionOnly: true,
-        isRealCall: false,
-        isPhoneAPI: true  // Marcar como Phone API
+        isRealCall: false
       });
     }
 
@@ -167,6 +175,40 @@ class UnifiedSessionService {
   }
 
   /**
+   * Establece la conexión Twilio para una sesión
+   * @param {string} sessionId 
+   * @param {WebSocket} ws 
+   * @param {string} streamSid 
+   */
+  setTwilioConnection(sessionId, ws, streamSid = null) {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      console.error(`[UnifiedSession] No se puede establecer conexión Twilio para sesión inexistente: ${sessionId}`);
+      return false;
+    }
+
+    session.connections.twilioWs = ws;
+    session.connections.twilioStreamSid = streamSid;
+    ws.sessionId = sessionId;
+
+    console.log(`[UnifiedSession] Conexión Twilio establecida para sesión ${sessionId}`);
+    return true;
+  }
+
+  /**
+   * Elimina la conexión Twilio
+   * @param {string} sessionId 
+   */
+  removeTwilioConnection(sessionId) {
+    const session = this.getSession(sessionId);
+    if (!session) return;
+
+    session.connections.twilioWs = null;
+    session.connections.twilioStreamSid = null;
+    console.log(`[UnifiedSession] Conexión Twilio eliminada de sesión ${sessionId}`);
+  }
+
+  /**
    * Establece la conversación de ElevenLabs
    * @param {string} sessionId 
    * @param {Object} conversation 
@@ -204,15 +246,16 @@ class UnifiedSessionService {
     const session = this.getSession(sessionId);
     if (!session) return false;
 
+    // Actualizar datos de la llamada
     Object.assign(session.call, callData);
 
-    // Si ahora tenemos un phoneCallId, es una llamada real
-    if (callData.phoneCallId && !session.call.isRealCall) {
+    // Si ahora tenemos un callSid, es una llamada real
+    if (callData.sid && !session.call.isRealCall) {
       session.call.isRealCall = true;
-      session.call.isPhoneAPI = true;
       session.call.startTime = session.call.startTime || Date.now();
     }
 
+    // Actualizar en storage si no es sesión del dashboard
     if (!sessionId.startsWith('session_dashboard_')) {
       updateCall(sessionId, callData);
     }
@@ -233,12 +276,20 @@ class UnifiedSessionService {
     session.call.status = 'ended';
     session.call.endTime = Date.now();
 
-    // NO hay conversación de ElevenLabs que cerrar con Phone API
+    // Cerrar conversación de ElevenLabs si existe
+    if (session.connections.elevenLabsConversation) {
+      try {
+        session.connections.elevenLabsConversation.endSession();
+      } catch (error) {
+        console.error(`[UnifiedSession] Error cerrando conversación ElevenLabs:`, error);
+      }
+    }
 
+    // Notificar a storage si es una llamada real
     if (session.call.isRealCall && !sessionId.startsWith('session_dashboard_')) {
       storageEndCall(sessionId, {
         ...endData,
-        phoneCallId: session.call.phoneCallId  // Usar phoneCallId en lugar de sid
+        callSid: session.call.sid
       });
     }
 
@@ -472,7 +523,7 @@ class UnifiedSessionService {
    * @param {Object} session 
    */
   closeAllConnections(session) {
-    // Solo cerrar clientes de logs
+    // Cerrar clientes de logs
     session.connections.logClients.forEach(client => {
       try {
         if (client.readyState === 1) {
@@ -483,8 +534,43 @@ class UnifiedSessionService {
       }
     });
 
-    // NO hay conexiones Twilio o ElevenLabs WebSocket que cerrar
+    // Cerrar conexión Twilio
+    if (session.connections.twilioWs) {
+      try {
+        if (session.connections.twilioWs.readyState === 1) {
+          session.connections.twilioWs.close(1000, "Sesión finalizada");
+        }
+      } catch (error) {
+        console.error(`[UnifiedSession] Error cerrando conexión Twilio:`, error);
+      }
+    }
+
+    // Cerrar conversación ElevenLabs
+    if (session.connections.elevenLabsConversation) {
+      try {
+        session.connections.elevenLabsConversation.endSession();
+      } catch (error) {
+        console.error(`[UnifiedSession] Error cerrando conversación ElevenLabs:`, error);
+      }
+    }
   }
+
+  /**
+   * Maneja el stream de media de Twilio
+   * @param {WebSocket} ws 
+   * @param {string} sessionId 
+   */
+  async handleMediaStream(ws, sessionId) {
+    // Importar elevenLabsService dinámicamente para evitar dependencias circulares
+    const { setupMediaStream } = await import('./elevenLabsService.js');
+
+    // Registrar la conexión Twilio
+    this.setTwilioConnection(sessionId, ws);
+
+    // Configurar el stream con ElevenLabs
+    await setupMediaStream(ws, sessionId);
+  }
+}
 
 // Crear instancia única (Singleton)
 const unifiedSessionService = new UnifiedSessionService();
@@ -499,6 +585,8 @@ export const {
   sessionExists,
   addLogClient,
   removeLogClient,
+  setTwilioConnection,
+  removeTwilioConnection,
   setElevenLabsConversation,
   getElevenLabsConversation,
   updateCallInfo,
@@ -509,13 +597,16 @@ export const {
   deactivateAgentMode,
   broadcastToSession,
   getStats,
-  removeSession
+  removeSession,
+  handleMediaStream
 } = {
   createSession: (id) => unifiedSessionService.createSession(id),
   getSession: (id) => unifiedSessionService.getSession(id),
   sessionExists: (id) => unifiedSessionService.sessionExists(id),
   addLogClient: (id, ws) => unifiedSessionService.addLogClient(id, ws),
   removeLogClient: (ws) => unifiedSessionService.removeLogClient(ws),
+  setTwilioConnection: (id, ws, sid) => unifiedSessionService.setTwilioConnection(id, ws, sid),
+  removeTwilioConnection: (id) => unifiedSessionService.removeTwilioConnection(id),
   setElevenLabsConversation: (id, conv) => unifiedSessionService.setElevenLabsConversation(id, conv),
   getElevenLabsConversation: (id) => unifiedSessionService.getElevenLabsConversation(id),
   updateCallInfo: (id, data) => unifiedSessionService.updateCallInfo(id, data),
@@ -526,5 +617,6 @@ export const {
   deactivateAgentMode: (id) => unifiedSessionService.deactivateAgentMode(id),
   broadcastToSession: (id, msg) => unifiedSessionService.broadcastToSession(id, msg),
   getStats: () => unifiedSessionService.getStats(),
-  removeSession: (id) => unifiedSessionService.removeSession(id)
+  removeSession: (id) => unifiedSessionService.removeSession(id),
+  handleMediaStream: (ws, id) => unifiedSessionService.handleMediaStream(ws, id)
 };

@@ -1,4 +1,3 @@
-// views/js/webSocketHandler.js (MODIFICADO)
 // Módulo para manejar las conexiones WebSocket
 const WebSocketHandler = (() => {
   // Variables privadas
@@ -23,6 +22,7 @@ const WebSocketHandler = (() => {
       }
     } catch (error) {
       console.error('[WebSocketHandler] Error obteniendo sessionId:', error);
+      // Fallback: generar un ID único local en caso de error
       sessionId = `local_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
       console.warn(`[WebSocketHandler] Usando sessionId local de emergencia: ${sessionId}`);
       return sessionId;
@@ -37,8 +37,9 @@ const WebSocketHandler = (() => {
     return sessionId;
   }
 
-  // Conectar al WebSocket de logs - SIMPLIFICADO para Phone API
+  // Conectar al WebSocket de logs
   async function connectToLogsWebSocket(onMessageCallback, onOpenCallback, onCloseCallback) {
+    // Asegurar que tenemos un sessionId válido antes de conectar
     await getSessionId();
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -47,7 +48,7 @@ const WebSocketHandler = (() => {
     logsWebSocket.onopen = function() {
       if (onOpenCallback) onOpenCallback();
 
-      // Heartbeat para mantener la conexión viva
+      // Configurar heartbeat para mantener la conexión viva
       const heartbeatInterval = setInterval(() => {
         if (logsWebSocket.readyState === WebSocket.OPEN) { 
           logsWebSocket.send('heartbeat'); 
@@ -62,73 +63,92 @@ const WebSocketHandler = (() => {
     };
 
     logsWebSocket.onmessage = function(event) {
+      // Procesar el mensaje antes de pasarlo al callback
       try {
         let data = event.data;
 
-        // Intentar parsear como JSON
+        // Intentar parsear como JSON si es posible
         try {
           data = JSON.parse(event.data);
 
-          // SIMPLIFICADO: Phone API maneja el audio internamente
-          // Solo procesamos eventos de estado y transcripciones
+          // Detectar comando de interrupción
+          if (data.type === "interruption" || 
+              (data.type === "log" && data.message && data.message.includes("interrupción")) ||
+              (typeof data === 'string' && data.includes("interrupción"))) {
+
+            console.log("[WebSocketHandler] Recibido comando de interrupción, limpiando colas de audio");
+
+            // Limpiar cualquier audio reproduciéndose en el cliente
+            if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+              window.AudioProcessor.clearAudioQueues();
+            }
+          }
 
           // Procesar actualizaciones de estado de llamada
           if (data.type === "call_status_update") {
-            console.log(`[WebSocketHandler] Estado de llamada: ${data.status} - ${data.message}`);
+            console.log(`[WebSocketHandler] Actualización de estado de llamada: ${data.status} - ${data.message}`);
 
+            // Actualizar la UI con el nuevo estado
             if (window.UIController && typeof window.UIController.updateCallStatus === 'function') {
               window.UIController.updateCallStatus(data.status, data.message);
             }
 
-            // Para estados finales, actualizar UI
-            if (['ended', 'failed', 'busy', 'no-answer', 'canceled'].includes(data.status)) {
-              if (window.UIController) {
+            // Para ciertos estados, podríamos querer actualizar otros elementos de la UI
+            if (data.status === 'ended' || data.status === 'failed' || data.status === 'busy' || 
+                data.status === 'no-answer' || data.status === 'canceled') {
+
+              // Actualizar el botón de llamada si la llamada finalizó
+              if (window.UIController && typeof window.UIController.updateCallButton === 'function') {
                 window.UIController.updateCallButton(false);
                 window.UIController.setCurrentCallSid(null);
               }
+
+              // Limpiar cualquier audio reproduciéndose
+              if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+                window.AudioProcessor.clearAudioQueues();
+              }
+
+              // Si estaba en modo agente, desactivarlo
+              if (window.UIController && window.UIController.isAgentActive && 
+                  window.UIController.isAgentActive() && 
+                  window.AgentVoiceCapture && 
+                  typeof window.AgentVoiceCapture.stopCapturing === 'function') {
+
+                window.AgentVoiceCapture.stopCapturing();
+
+                if (typeof window.UIController.updateTakeoverButton === 'function') {
+                  window.UIController.updateTakeoverButton(false);
+                }
+              }
             }
           }
-
-          // Procesar transcripciones
-          if (data.type === "user_transcript") {
-            if (window.UIController) {
-              window.UIController.addChatMessage(data.text, 'client');
-            }
-          }
-
-          if (data.type === "agent_response") {
-            if (window.UIController) {
-              window.UIController.addChatMessage(data.text, 'bot');
-            }
-          }
-
-          // Nuevos eventos de Phone API
-          if (data.type === "user_speaking") {
-            console.log(`[WebSocketHandler] Usuario ${data.status === 'started' ? 'hablando' : 'dejó de hablar'}`);
-          }
-
-          if (data.type === "agent_speaking") {
-            console.log(`[WebSocketHandler] Agente ${data.status === 'started' ? 'hablando' : 'dejó de hablar'}`);
-          }
-
         } catch (e) {
-          // No es JSON, procesar como texto de log
+          // No es JSON, verificar si contiene texto de interrupción
+          if (typeof event.data === 'string' && 
+              (event.data.includes("interrupción") || 
+               event.data.includes("Interruption") || 
+               event.data.includes("Agente"))) {
+
+            console.log("[WebSocketHandler] Mensaje de interrupción detectado:", event.data);
+
+            // Limpiar cualquier audio reproduciéndose en el cliente
+            if (window.AudioProcessor && typeof window.AudioProcessor.clearAudioQueues === 'function') {
+              window.AudioProcessor.clearAudioQueues();
+            }
+          }
         }
 
         // Continuar con el procesamiento normal
         if (onMessageCallback) onMessageCallback(event);
       } catch (error) {
         console.error("[WebSocketHandler] Error procesando mensaje:", error);
+        // En caso de error, permitir que el callback original procese el mensaje
         if (onMessageCallback) onMessageCallback(event);
       }
     };
 
     logsWebSocket.onclose = function() {
       if (onCloseCallback) onCloseCallback();
-    };
-
-    logsWebSocket.onerror = function(error) {
-      console.error("[WebSocketHandler] Error en WebSocket:", error);
     };
   }
 

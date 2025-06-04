@@ -1,8 +1,8 @@
-// routes/websockets.js
+// routes/websockets.js (MODIFICADO para Phone API)
 import unifiedSessionService from "../services/unifiedSessionService.js";
 
 export default function websocketsRoutes(fastify, options) {
-  // WebSocket para logs - Simplificado
+  // WebSocket para logs - SIMPLIFICADO para Phone API
   fastify.get("/logs-websocket", { websocket: true }, (ws, req) => {
     // Obtener sessionId del querystring
     const sessionId = req.query.sessionId;
@@ -25,16 +25,9 @@ export default function websocketsRoutes(fastify, options) {
     ws.send(JSON.stringify({
       type: 'connection_established',
       sessionId: sessionId,
-      message: `Conexión establecida para sesión: ${sessionId}`
+      message: `Conexión establecida para sesión: ${sessionId}`,
+      phoneAPI: true // Indicar que usamos Phone API
     }));
-
-    // Si hay URL pública, enviarla
-    if (fastify.publicUrl) {
-      ws.send(JSON.stringify({
-        type: 'info',
-        message: `URL pública: ${fastify.publicUrl}`
-      }));
-    }
 
     // Manejar cierre
     ws.on('close', () => {
@@ -54,11 +47,18 @@ export default function websocketsRoutes(fastify, options) {
         return;
       }
 
-      // Procesar posibles transcripciones en mensajes del WebSocket
+      // Phone API maneja las transcripciones a través de webhooks
+      // Por lo que este procesamiento es menos crítico
       try {
-        processTranscriptionsFromMessage(messageStr, sessionId);
-      } catch (error) {
-        // Ignorar errores al procesar transcripciones
+        const jsonData = JSON.parse(messageStr);
+
+        // Procesar comandos del cliente si es necesario
+        if (jsonData.type === 'command') {
+          console.log('[WebSocket] Comando recibido:', jsonData.command);
+          // Procesar comandos según sea necesario
+        }
+      } catch (e) {
+        // No es JSON, ignorar o procesar como texto
       }
     });
 
@@ -67,70 +67,9 @@ export default function websocketsRoutes(fastify, options) {
     });
   });
 
-  // WebSocket para el media stream - Simplificado
-  fastify.get("/outbound-media-stream", { websocket: true }, async (ws, req) => {
-    // Obtener sessionId del querystring
-    const sessionId = req.query.sessionId;
-
-    // Log de diagnóstico
-    console.log("[WebSocket] Media stream request:", { 
-      query: req.query, 
-      url: req.url
-    });
-
-    // Validar sessionId
-    if (!sessionId || !sessionId.startsWith('session_')) {
-      console.error("[WebSocket] No se proporcionó sessionId válido para media stream");
-      ws.close(1008, "SessionId no proporcionado o inválido");
-      return;
-    }
-
-    console.info("[WebSocket] Conexión de media stream iniciada con sessionId:", sessionId);
-
-    // Delegar todo el manejo al servicio unificado
-    try {
-      await unifiedSessionService.handleMediaStream(ws, sessionId);
-    } catch (error) {
-      console.error("[WebSocket] Error configurando media stream:", error);
-      ws.close(1011, "Error interno configurando stream");
-    }
-  });
-
-  // Función auxiliar para procesar posibles transcripciones en mensajes de texto
-  function processTranscriptionsFromMessage(messageText, sessionId) {
-    // Detectar transcripciones del usuario
-    if (messageText.includes("[Twilio] Transcripción del usuario:")) {
-      const text = messageText.replace(/.*Transcripción del usuario:\s*/, "").trim();
-      if (text) {
-        unifiedSessionService.addTranscription(sessionId, text, 'client');
-        console.log(`[WebSocket] Transcripción de usuario capturada para sesión ${sessionId}`);
-      }
-    } 
-    // Detectar respuestas del bot
-    else if (messageText.includes("[Twilio] Respuesta del agente:")) {
-      const text = messageText.replace(/.*Respuesta del agente:\s*/, "").trim();
-      if (text) {
-        const speakerType = messageText.includes("[AGENT]") ? 'agent' : 'bot';
-        unifiedSessionService.addTranscription(sessionId, text, speakerType);
-        console.log(`[WebSocket] Respuesta del ${speakerType} capturada para sesión ${sessionId}`);
-      }
-    }
-
-    // Intentar procesar como objeto JSON
-    try {
-      const jsonData = JSON.parse(messageText);
-
-      if (jsonData.type === 'user_transcript' && jsonData.text) {
-        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'client');
-      }
-      else if (jsonData.type === 'agent_response' && jsonData.text) {
-        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'bot');
-      }
-      else if (jsonData.type === 'agent_message' && jsonData.text) {
-        unifiedSessionService.addTranscription(sessionId, jsonData.text, 'agent');
-      }
-    } catch (e) {
-      // No es JSON, ignorar
-    }
-  }
+  /**
+   * ELIMINADO: /outbound-media-stream
+   * Ya no es necesario con Phone API ya que ElevenLabs maneja
+   * el streaming de audio internamente
+   */
 }
