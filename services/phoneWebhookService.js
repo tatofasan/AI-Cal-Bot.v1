@@ -1,7 +1,6 @@
 // services/phoneWebhookService.js
 import unifiedSessionService from './unifiedSessionService.js';
 import { registerCall, updateCall, endCall as storageEndCall, addCallTranscription } from './callStorageService.js';
-import elevenPhoneService from './elevenPhoneService.js';
 
 /**
  * Servicio para procesar webhooks de ElevenLabs Phone API

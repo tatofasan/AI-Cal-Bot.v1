@@ -1,7 +1,7 @@
 // routes/outboundCall.js (NUEVO - Reemplaza el anterior)
-import { handleIndexRoute, handleJsFileRoute } from "./outbound/routeHandler.js";
+import { handleIndexRoute, handleJsFileRoute } from "./dashboard/routeHandler.js";
 import { requireAuth } from "../middleware/auth-middleware.js";
-import elevenPhoneService from '../services/elevenPhoneService.js';
+import elevenPhoneSipService from '../services/elevenPhoneSipService.js';
 import unifiedSessionService from '../services/unifiedSessionService.js';
 import { registerCall } from '../services/callStorageService.js';
 
@@ -92,8 +92,8 @@ export default async function outboundCallRoutes(fastify, options) {
         isPhoneAPI: true
       });
 
-      // Iniciar llamada con ElevenLabs Phone API
-      const result = await elevenPhoneService.initiatePhoneCall({
+      // Iniciar llamada con ElevenLabs SIP trunk
+      const result = await elevenPhoneSipService.initiatePhoneCall({
         sessionId,
         phoneNumber: to_number,
         userName: user_name,
@@ -139,8 +139,8 @@ export default async function outboundCallRoutes(fastify, options) {
 
       console.log(`[OutboundCall] Finalizando llamada para sesión: ${sessionId}`);
 
-      // Finalizar llamada con ElevenLabs Phone API
-      const result = await elevenPhoneService.endPhoneCall(sessionId);
+      // Finalizar llamada con ElevenLabs SIP Service
+      const result = await elevenPhoneSipService.endPhoneCall(sessionId);
 
       return reply.send({
         success: true,

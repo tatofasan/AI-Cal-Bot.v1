@@ -1,7 +1,7 @@
 // routes/sessionRoutes.js
 import unifiedSessionService from '../services/unifiedSessionService.js';
-import { twilioClient } from "../services/twilioService.js";
 import { updateCall } from '../services/callStorageService.js';
+import elevenPhoneSipService from '../services/elevenPhoneSipService.js';
 
 export default async function sessionRoutes(fastify, options) {
   // Endpoint para solicitar un nuevo sessionId
@@ -79,14 +79,15 @@ export default async function sessionRoutes(fastify, options) {
         id: session.id,
         createdAt: session.createdAt,
         lastActivity: session.lastActivity,
-        callSid: session.call.sid,
+        phoneCallId: session.call.phoneCallId,
         callStatus: session.call.status,
         isAgentActive: session.agent.isActive,
         transcriptCount: session.transcriptions.length,
+        usingSipTrunk: session.call.usingSipTrunk,
+        sipTrunkAddress: session.call.sipTrunkAddress,
         connections: {
           logClients: session.connections.logClients.size,
-          hasTwilioConnection: !!session.connections.twilioWs,
-          hasElevenLabsConnection: !!session.connections.elevenLabsConversation
+          isPhoneAPI: session.call.isPhoneAPI
         }
       };
 
@@ -194,13 +195,13 @@ export default async function sessionRoutes(fastify, options) {
         });
       }
 
-      // Si la sesión tiene una llamada activa, finalizarla primero en Twilio
-      if (session.call.sid && session.call.status === 'active') {
+      // Si la sesión tiene una llamada activa, finalizarla primero
+      if (session.call.phoneCallId && session.call.status === 'active') {
         try {
-          await twilioClient.calls(session.call.sid).update({ status: "completed" });
-          console.log(`[SessionRoutes] Llamada ${session.call.sid} finalizada en Twilio`);
-        } catch (twilioError) {
-          console.error(`[SessionRoutes] Error al finalizar llamada en Twilio:`, twilioError);
+          await elevenPhoneSipService.endPhoneCall(sessionId);
+          console.log(`[SessionRoutes] Llamada ${session.call.phoneCallId} finalizada`);
+        } catch (phoneError) {
+          console.error(`[SessionRoutes] Error al finalizar llamada:`, phoneError);
         }
       }
 

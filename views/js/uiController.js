@@ -136,13 +136,22 @@ const UIController = (() => {
     let statusMessage = message || status;
 
     switch (status) {
+      case 'initiating':
+        statusColor = 'bg-blue-500';
+        statusMessage = 'Iniciando llamada...';
+        break;
+      case 'connecting':
+        statusColor = 'bg-blue-500';
+        statusMessage = 'Conectando...';
+        break;
       case 'ringing':
         statusColor = 'bg-yellow-500';
-        statusMessage = 'Llamando...';
+        statusMessage = 'Teléfono sonando...';
         break;
+      case 'active':
       case 'connected':
         statusColor = 'bg-green-500';
-        statusMessage = 'Conectado';
+        statusMessage = 'Llamada activa';
         break;
       case 'busy':
         statusColor = 'bg-red-500';
@@ -151,6 +160,10 @@ const UIController = (() => {
       case 'no-answer':
         statusColor = 'bg-orange-500';
         statusMessage = 'Sin respuesta';
+        break;
+      case 'ending':
+        statusColor = 'bg-orange-500';
+        statusMessage = 'Finalizando llamada...';
         break;
       case 'failed':
       case 'canceled':
@@ -162,13 +175,17 @@ const UIController = (() => {
         statusColor = 'bg-blue-500';
         statusMessage = 'Iniciando...';
         break;
+      case 'error':
+        statusColor = 'bg-red-500';
+        statusMessage = message || 'Error en llamada';
+        break;
     }
 
     elements.statusIndicator.className = `absolute w-3 h-3 rounded-full status-badge ${statusColor}`;
     elements.statusText.textContent = statusMessage;
 
     // Agregar mensaje al chat para estados importantes
-    if (['connected', 'busy', 'no-answer', 'failed', 'ended'].includes(status)) {
+    if (['active', 'connected', 'busy', 'no-answer', 'failed', 'ended', 'error'].includes(status)) {
       addChatMessage(statusMessage, 'system');
     }
   }

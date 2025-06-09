@@ -72,8 +72,8 @@ const WebSocketHandler = (() => {
           // SIMPLIFICADO: Phone API maneja el audio internamente
           // Solo procesamos eventos de estado y transcripciones
 
-          // Procesar actualizaciones de estado de llamada
-          if (data.type === "call_status_update") {
+          // Procesar actualizaciones de estado de llamada (ambos formatos)
+          if (data.type === "call_status_update" || data.type === "call_status") {
             console.log(`[WebSocketHandler] Estado de llamada: ${data.status} - ${data.message}`);
 
             if (window.UIController && typeof window.UIController.updateCallStatus === 'function') {
@@ -85,6 +85,16 @@ const WebSocketHandler = (() => {
               if (window.UIController) {
                 window.UIController.updateCallButton(false);
                 window.UIController.setCurrentCallSid(null);
+              }
+            }
+
+            // Para estados activos, actualizar UI
+            if (['active', 'connected', 'ringing'].includes(data.status)) {
+              if (window.UIController) {
+                window.UIController.updateCallButton(true);
+                if (data.phoneCallId) {
+                  window.UIController.setCurrentCallSid(data.phoneCallId);
+                }
               }
             }
           }

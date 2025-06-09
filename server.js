@@ -1,4 +1,5 @@
 // server.js
+import dotenv from 'dotenv';
 import Fastify from "fastify";
 import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
@@ -10,6 +11,9 @@ import { join } from "path";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import routes from "./routes/index.js";
+
+// Cargar variables de entorno
+dotenv.config();
 
 import { appConfig, getPublicUrl } from "./services/config/appConfig.js";
 

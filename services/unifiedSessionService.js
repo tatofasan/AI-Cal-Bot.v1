@@ -46,9 +46,9 @@ class UnifiedSessionService {
       createdAt: Date.now(),
       lastActivity: Date.now(),
 
-      // Estado de la llamada - MODIFICADO para Phone API
+      // Estado de la llamada - Phone API + SIP trunk
       call: {
-        phoneCallId: null,     // Nuevo: ID de Phone API en lugar de sid
+        phoneCallId: null,
         status: 'idle',
         phoneNumber: null,
         userName: null,
@@ -58,13 +58,14 @@ class UnifiedSessionService {
         endTime: null,
         isRealCall: false,
         clientIp: null,
-        isPhoneAPI: false      // Nuevo: marcar si usa Phone API
+        isPhoneAPI: true,      // Usando Phone API por defecto
+        usingSipTrunk: false,  // Marcador para SIP trunk
+        sipTrunkAddress: null,
+        callerNumber: null
       },
 
-      // Conexiones - SIMPLIFICADO
+      // Conexiones - Simplificado para Phone API
       connections: {
-        // twilioWs y twilioStreamSid ELIMINADOS
-        // elevenLabsConversation ELIMINADO (manejado por Phone API)
         logClients: new Set(),
         agentWs: null
       },
@@ -399,14 +400,15 @@ class UnifiedSessionService {
           createdAt: session.createdAt,
           lastActivity: session.lastActivity,
           callStatus: session.call.status,
-          callSid: session.call.sid,
+          phoneCallId: session.call.phoneCallId,
           isRealCall: session.call.isRealCall,
           isAgentActive: session.agent.isActive,
           transcriptCount: session.transcriptions.length,
+          usingSipTrunk: session.call.usingSipTrunk,
+          sipTrunkAddress: session.call.sipTrunkAddress,
           connections: {
             logClients: session.connections.logClients.size,
-            hasTwilioConnection: !!session.connections.twilioWs,
-            hasElevenLabsConnection: !!session.connections.elevenLabsConversation
+            isPhoneAPI: session.call.isPhoneAPI
           }
         });
       }
@@ -456,7 +458,7 @@ class UnifiedSessionService {
     this.closeAllConnections(session);
 
     // Si hay una llamada activa, finalizarla
-    if (session.call.sid && session.call.status !== 'ended') {
+    if (session.call.phoneCallId && session.call.status !== 'ended') {
       this.endCall(sessionId, { reason: 'session_cleanup' });
     }
 
@@ -483,8 +485,9 @@ class UnifiedSessionService {
       }
     });
 
-    // NO hay conexiones Twilio o ElevenLabs WebSocket que cerrar
+    // Con Phone API + SIP trunk no hay conexiones adicionales que cerrar
   }
+}
 
 // Crear instancia única (Singleton)
 const unifiedSessionService = new UnifiedSessionService();

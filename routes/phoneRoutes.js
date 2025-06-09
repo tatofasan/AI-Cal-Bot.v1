@@ -1,5 +1,5 @@
 // routes/phoneRoutes.js
-import elevenPhoneService from '../services/elevenPhoneService.js';
+import elevenPhoneSipService from '../services/elevenPhoneSipService.js';
 import unifiedSessionService from '../services/unifiedSessionService.js';
 import { registerCall, updateCall } from '../services/callStorageService.js';
 import { requireAuth } from '../middleware/auth-middleware.js';
@@ -88,8 +88,8 @@ export default async function phoneRoutes(fastify, options) {
         isRealCall: true
       });
 
-      // Iniciar la llamada a través de ElevenLabs Phone API
-      const result = await elevenPhoneService.initiatePhoneCall({
+      // Iniciar la llamada a través de ElevenLabs SIP trunk
+      const result = await elevenPhoneSipService.initiatePhoneCall({
         sessionId,
         phoneNumber,
         userName,
@@ -150,7 +150,7 @@ export default async function phoneRoutes(fastify, options) {
       console.log('[PhoneRoute] Finalizando llamada:', sessionId);
 
       // Finalizar la llamada
-      const result = await elevenPhoneService.endPhoneCall(sessionId);
+      const result = await elevenPhoneSipService.endPhoneCall(sessionId);
 
       return reply.send({
         success: true,
@@ -185,7 +185,7 @@ export default async function phoneRoutes(fastify, options) {
     try {
       const { sessionId } = request.params;
 
-      const status = elevenPhoneService.getCallStatus(sessionId);
+      const status = elevenPhoneSipService.getCallStatus(sessionId);
 
       if (!status) {
         return reply.code(404).send({
@@ -237,7 +237,10 @@ export default async function phoneRoutes(fastify, options) {
 
       console.log('[PhoneRoute] Actualizando variables:', { sessionId, variables });
 
-      const result = await elevenPhoneService.updateAgentVariables(sessionId, variables);
+      // Nota: updateAgentVariables no implementado en SIP service
+      // const result = await elevenPhoneSipService.updateAgentVariables(sessionId, variables);
+      // Por ahora solo confirmar recepción
+      const result = { success: true, message: 'Variables recibidas (función no implementada para SIP)' };
 
       return reply.send({
         success: true,
@@ -272,7 +275,7 @@ export default async function phoneRoutes(fastify, options) {
           session.callStatus === 'starting'
         )
         .map(session => {
-          const phoneStatus = elevenPhoneService.getCallStatus(session.id);
+          const phoneStatus = elevenPhoneSipService.getCallStatus(session.id);
           return {
             sessionId: session.id,
             ...phoneStatus,
