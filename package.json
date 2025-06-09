@@ -21,7 +21,7 @@
     "@types/node": "^18.0.6",
     "dotenv": "^16.5.0",
     "elevenlabs": "^1.59.0",
-    "fastify": "^5.2.1",
+    "fastify": "^5.3.3",
     "is-port-reachable": "^4.0.0",
     "node-fetch": "^3.3.2",
     "uuid": "^11.1.0",
