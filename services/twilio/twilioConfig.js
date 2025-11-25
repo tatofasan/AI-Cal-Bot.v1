@@ -10,13 +10,17 @@ export const DEFAULT_TO_PHONE_NUMBER = process.env.DEFAULT_TO_PHONE_NUMBER;
 
 /**
  * Crea e inicializa el cliente de Twilio
- * @returns {object} Cliente inicializado de Twilio
+ * @returns {object|null} Cliente inicializado de Twilio o null si no hay credenciales
  */
 export const initializeTwilioClient = () => {
   try {
     // Verificar que las credenciales estén disponibles
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-      throw new Error("Credenciales de Twilio no configuradas en variables de entorno");
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN ||
+        TWILIO_ACCOUNT_SID === 'your_twilio_account_sid_here' ||
+        TWILIO_AUTH_TOKEN === 'your_twilio_auth_token_here') {
+      console.warn("[Twilio] Credenciales no configuradas. El servidor iniciará pero las llamadas no funcionarán.");
+      console.warn("[Twilio] Configura TWILIO_ACCOUNT_SID y TWILIO_AUTH_TOKEN en el archivo .env");
+      return null;
     }
 
     const client = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -24,7 +28,7 @@ export const initializeTwilioClient = () => {
     return client;
   } catch (error) {
     console.error("[Twilio] Error inicializando cliente:", error);
-    throw error;
+    return null;
   }
 };
 

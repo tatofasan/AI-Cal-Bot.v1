@@ -1,4 +1,5 @@
 // server.js
+import 'dotenv/config';
 import Fastify from "fastify";
 import fastifyWs from "@fastify/websocket";
 import fastifyFormBody from "@fastify/formbody";
